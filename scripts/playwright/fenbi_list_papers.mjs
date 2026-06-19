@@ -9,6 +9,8 @@ const pageSize = Number(process.env.FENBI_PAGE_SIZE || 50);
 const outputFile = process.env.FENBI_OUTPUT_FILE || "";
 const headless = process.env.FENBI_HEADLESS !== "0";
 const timeoutMs = Number(process.env.FENBI_TIMEOUT_MS || 180000);
+const networkIdleTimeout = Number(process.env.FENBI_NETWORK_IDLE_MS || 15000);
+const scrollDelayMs = Number(process.env.FENBI_SCROLL_DELAY_MS || 800);
 
 if (!["xingce", "shenlun"].includes(paperKind)) {
   console.error("FENBI_PAPER_KIND must be xingce or shenlun");
@@ -58,10 +60,10 @@ try {
       }
     });
     await page.goto(listUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs }).catch(() => {});
-    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: networkIdleTimeout }).catch(() => {});
     for (let index = 0; index < 5; index += 1) {
       await page.evaluate(() => window.scrollBy(0, 800));
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(scrollDelayMs);
     }
     papers = normalizePapers(captured);
   }

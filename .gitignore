@@ -8,6 +8,9 @@
 !.env.example
 !.env.*.example
 
+## Node.js dependencies
+node_modules/
+
 ## Python caches and build artifacts
 __pycache__/
 *.py[cod]

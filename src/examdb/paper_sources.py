@@ -40,6 +40,7 @@ class DownloadResult:
 class FenbiFetchResult:
     paper_id: str
     exercise_key: str | None
+    paper_kind: str = "行测"
     status: str
     path: str | None = None
     source_url: str | None = None
@@ -256,6 +257,7 @@ def fetch_fenbi_solution(
         return FenbiFetchResult(
             paper_id=paper_id,
             exercise_key=None,
+            paper_kind=paper_kind,
             status="blocked",
             blocked_reason="missing data/auth/fenbi/storage-state.json; run auth fenbi-login first",
         )
@@ -268,7 +270,7 @@ def fetch_fenbi_solution(
     try:
         command = _playwright_command(paths, script)
     except RuntimeError as exc:
-        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, status="blocked", blocked_reason=str(exc))
+        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, paper_kind=paper_kind, status="blocked", blocked_reason=str(exc))
     env = os.environ.copy()
     env["FENBI_AUTH_STATE"] = str(auth_state)
     env["FENBI_PAPER_ID"] = paper_id
@@ -283,19 +285,20 @@ def fetch_fenbi_solution(
     try:
         completed = subprocess.run(command, cwd=paths.root, env=env, text=True, capture_output=True, timeout=timeout_seconds + 30)
     except subprocess.TimeoutExpired:
-        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, status="blocked", blocked_reason="fetch timed out")
+        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, paper_kind=paper_kind, status="blocked", blocked_reason="fetch timed out")
     if completed.returncode != 0:
         reason = _sanitize_playwright_output(completed.stderr or completed.stdout)
-        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, status="blocked", blocked_reason=reason or "fenbi solution fetch failed")
+        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, paper_kind=paper_kind, status="blocked", blocked_reason=reason or "fenbi solution fetch failed")
     try:
         payload = _last_json_line(completed.stdout)
     except ValueError as exc:
-        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, status="blocked", blocked_reason=str(exc))
+        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, paper_kind=paper_kind, status="blocked", blocked_reason=str(exc))
     if not output_file.exists():
-        return FenbiFetchResult(paper_id=paper_id, exercise_key=payload.get("exerciseKey"), status="blocked", blocked_reason="solution file was not saved")
+        return FenbiFetchResult(paper_id=paper_id, exercise_key=payload.get("exerciseKey"), paper_kind=paper_kind, status="blocked", blocked_reason="solution file was not saved")
     return FenbiFetchResult(
         paper_id=paper_id,
         exercise_key=payload.get("exerciseKey") or payload.get("combineKey"),
+        paper_kind=paper_kind,
         status="downloaded",
         path=str(output_file.relative_to(paths.root)),
         source_url=payload.get("sourceUrl"),

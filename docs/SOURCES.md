@@ -167,7 +167,30 @@ PYTHONPATH=src python3 -m examdb discover fenbi-papers \
 data/raw/papers/fenbi/paper-list/<paper-kind>-<label-id>.json
 ```
 
-按粉笔 `paperId` 自动创建练习、空白交卷并保存 `static/solution` JSON：
+Shell wrapper 也支持直接调用：
+
+```bash
+scripts/obsidian/discover_fenbi_papers.sh 1 xingce
+scripts/obsidian/discover_fenbi_papers.sh 126 shenlun
+```
+
+常用 `labelId`（完整参考表见 `data/paper_ids/label_ids.md`）：
+
+| labelId | 地区/考试 | labelId (申论) |
+|---------|----------|---------------|
+| 1 | 国考 | 101 |
+| 26 | 四川 | 126 |
+| 32 | 重庆 | 132 |
+
+申论 labelId = 行测 labelId + 100。批量抓取用：
+
+```bash
+scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt
+scripts/obsidian/fetch_fenbi_all.sh --shenlun data/paper_ids/guokao_shenlun_ids.txt
+scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json
+```
+
+**行测**：按 `paperId` 自动创建练习 → 空白交卷 → 拦截 `combine/static/solution` JSON（行测必须先交卷才能拿到答案）：
 
 ```bash
 PYTHONPATH=src python3 -m examdb fetch fenbi-solution \
@@ -177,7 +200,7 @@ PYTHONPATH=src python3 -m examdb fetch fenbi-solution \
   --strict
 ```
 
-申论套卷走粉笔申论接口，解析 `solutionAccessories` 中的参考答案、解题思路和知识拓展：
+**申论**：直接调 `getPaperSolution` API → CDN 静态 JSON，**不需要做交卷**，JSON 自带 `solutionAccessories` 中的参考答案、解题思路和知识拓展：
 
 ```bash
 PYTHONPATH=src python3 -m examdb fetch fenbi-solution \

@@ -29,6 +29,11 @@ Use this skill as the Obsidian-facing entrypoint for ExamDB. It maps vault actio
 ```bash
 scripts/obsidian/init_examdb.sh
 scripts/obsidian/collect_qstheory_recent.sh
+scripts/obsidian/collect_people_commentary_recent.sh
+scripts/obsidian/collect_gov_policy_recent.sh
+scripts/obsidian/collect_xinhua_politics_recent.sh
+scripts/obsidian/collect_sichuan_gov_recent.sh
+scripts/obsidian/collect_chongqing_gov_recent.sh
 scripts/obsidian/import_inbox_papers.sh
 scripts/obsidian/generate_weekly_report.sh
 scripts/obsidian/list_practice_questions.sh
@@ -36,12 +41,32 @@ scripts/obsidian/retag_policy_articles.sh
 scripts/obsidian/sync_policy_article_metadata.sh
 ```
 
-Fenbi paper discovery and solution import currently use direct CLI commands from the project root:
+Fenbi paper operations now have shell wrappers:
+
+```bash
+# Login
+scripts/obsidian/fenbi_login.sh
+
+# Discover papers by labelId
+scripts/obsidian/discover_fenbi_papers.sh 1 xingce      # 国考行测
+scripts/obsidian/discover_fenbi_papers.sh 1 shenlun      # 国考申论
+scripts/obsidian/discover_fenbi_papers.sh 26 xingce     # 四川省考行测
+
+# Fetch single paper
+scripts/obsidian/fetch_fenbi_paper.sh 222388 --import
+scripts/obsidian/fetch_fenbi_paper.sh 222388 --shenlun --import
+
+# Batch fetch from ID file or discover JSON
+scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt
+scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json
+scripts/obsidian/fetch_fenbi_all.sh --shenlun data/paper_ids/guokao_shenlun_ids.txt
+```
+
+底层 CLI 仍然可用，适合脚本和调试：
 
 ```bash
 PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
 PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
-PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
 PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --import
 PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --shenlun --import
 ```
