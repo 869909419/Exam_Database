@@ -182,11 +182,12 @@ scripts/obsidian/discover_fenbi_papers.sh 126 shenlun
 | 26 | 四川 | 126 |
 | 32 | 重庆 | 132 |
 
-申论 labelId = 行测 labelId + 100。批量抓取用：
+申论 labelId = 行测 labelId + 100。批量抓取默认只保存 JSON；需要导入 SQLite 和 vault 时加 `--import`：
 
 ```bash
 scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt
 scripts/obsidian/fetch_fenbi_all.sh --shenlun data/paper_ids/guokao_shenlun_ids.txt
+scripts/obsidian/fetch_fenbi_all.sh --import data/paper_ids/guokao_ids.txt
 scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json
 ```
 

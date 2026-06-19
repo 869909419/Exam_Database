@@ -36,6 +36,8 @@ Obsidian 本身不直接执行 Python CLI。第一版支持两种入口：
 
 这些脚本会自动切到项目根目录，并设置 `PYTHONPATH=src`。
 
+完整使用手册见 vault 内部笔记：`vault/自动化/Obsidian 调用脚本指南.md`。那份文档逐项说明了初始化、政策文章采集、本地真题导入、粉笔登录/发现/单套抓取/批量抓取、刷题周报、题目列表、DeepSeek 标签修正、Markdown 元数据同步，以及各参数在不同设置下的效果。
+
 ## 终端手动运行
 
 ```bash
@@ -66,10 +68,11 @@ npm run playwright:install
 ```bash
 scripts/obsidian/fenbi_login.sh                                   # 手动登录
 scripts/obsidian/discover_fenbi_papers.sh 1 xingce               # 发现国考行测
-scripts/obsidian/discover_fenbi_papers.sh 26 shenlun             # 发现四川省考申论
+scripts/obsidian/discover_fenbi_papers.sh 126 shenlun            # 发现四川省考申论
 scripts/obsidian/fetch_fenbi_paper.sh 222388 --import            # 单套行测
-scripts/obsidian/fetch_fenbi_paper.sh 222388 --shenlun --import  # 单套申论
-scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt  # 批量抓取
+scripts/obsidian/fetch_fenbi_paper.sh 8055558 --shenlun --import # 单套申论
+scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt  # 批量抓取 JSON
+scripts/obsidian/fetch_fenbi_all.sh --import data/paper_ids/guokao_ids.txt  # 抓取并导入
 scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json
 ```
 
@@ -92,7 +95,7 @@ PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind
 发现粉笔申论套卷：
 
 ```bash
-PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 101 --paper-kind shenlun
 ```
 
 抓取并导入行测解析：
@@ -224,9 +227,9 @@ PYTHONPATH=src python3 -m examdb ingest articles --source chongqing-gov --since 
 ```bash
 PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
 PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
-PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 101 --paper-kind shenlun
 PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --import
-PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --shenlun --import
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 8055558 --shenlun --import
 ```
 
 DeepSeek retag 的底层 CLI：
@@ -249,7 +252,7 @@ Vault 中已加入说明笔记：
 
 - `vault/自动化/Obsidian 调用脚本指南.md`
 
-建议把它作为自动化首页，里面列出了可复制到 Shell commands 插件的命令。
+建议把它作为自动化首页；里面有完整参数说明、场景示例，以及可复制到 Shell commands 插件的命令。
 
 ## Skill 整合
 

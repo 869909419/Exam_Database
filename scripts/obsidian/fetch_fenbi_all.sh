@@ -12,6 +12,9 @@
 #   # 直接传入多个 paperId
 #   scripts/obsidian/fetch_fenbi_all.sh 222388 222389 222390
 #
+#   # 抓取后导入 SQLite 和 vault
+#   scripts/obsidian/fetch_fenbi_all.sh --import data/paper_ids/guokao_ids.txt
+#
 #   # 从 discover 输出的 JSON 列表抓取
 #   scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json
 # ============================================================
@@ -24,7 +27,7 @@ cd "$PROJECT_ROOT"
 # ── parse flags ──
 SHENLUN_FLAG=""
 HEADED_FLAG=""
-IMPORT_FLAG="--import"
+IMPORT_FLAG=""
 FROM_DISCOVER=""
 IDS_ARGS=()
 
@@ -38,15 +41,27 @@ while [[ $# -gt 0 ]]; do
             HEADED_FLAG="--headed"
             shift
             ;;
+        --import)
+            IMPORT_FLAG="--import"
+            shift
+            ;;
         --no-import)
             IMPORT_FLAG=""
             shift
             ;;
         --from-discover)
+            if [[ $# -lt 2 || "$2" == --* ]]; then
+                echo "Missing value for --from-discover"
+                exit 2
+            fi
             FROM_DISCOVER="$2"
             shift 2
             ;;
         *)
+            if [[ "$1" == --* ]]; then
+                echo "Unknown option: $1"
+                exit 2
+            fi
             IDS_ARGS+=("$1")
             shift
             ;;
@@ -64,15 +79,17 @@ if [ -n "$FROM_DISCOVER" ]; then
     fi
     while IFS= read -r id; do
         [ -n "$id" ] && IDS+=("$id")
-    done < <(python3 -c "
+    done < <(python3 -c '
 import json, sys
-data = json.load(open('$FROM_DISCOVER'))
-for p in data.get('papers', []):
-    print(p.get('paperId', ''))
-")
+with open(sys.argv[1], encoding="utf-8") as fh:
+    data = json.load(fh)
+for p in data.get("papers", []):
+    print(p.get("paperId", ""))
+' "$FROM_DISCOVER")
 elif [ ${#IDS_ARGS[@]} -gt 0 ] && [ -f "${IDS_ARGS[0]}" ]; then
     # Read from plain text file
     while IFS= read -r line; do
+        line="${line//$'\r'/}"
         line="${line%%#*}"
         line="${line// /}"
         [ -n "$line" ] && IDS+=("$line")
@@ -87,6 +104,7 @@ if [ ${#IDS[@]} -eq 0 ]; then
     echo "Examples:"
     echo "  $0 data/paper_ids/guokao_ids.txt"
     echo "  $0 --shenlun data/paper_ids/guokao_shenlun_ids.txt"
+    echo "  $0 --import data/paper_ids/guokao_ids.txt"
     echo "  $0 --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json"
     echo "  $0 222388 222389"
     exit 1
@@ -105,6 +123,10 @@ TOTAL=${#IDS[@]}
 SUCCESS=0
 FAILED=0
 BATCH_DELAY="${FENBI_BATCH_DELAY:-10}"
+if [[ ! "$BATCH_DELAY" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    echo "FENBI_BATCH_DELAY must be a non-negative number, got: $BATCH_DELAY"
+    exit 2
+fi
 
 echo "============================================"
 echo "粉笔批量抓取 — $TOTAL 套"
@@ -116,11 +138,12 @@ for i in "${!IDS[@]}"; do
     idx=$((i + 1))
     echo "[$idx/$TOTAL] 正在抓取 paper $pid..."
 
-    if PYTHONPATH=src python3 -m examdb fetch fenbi-solution \
-        --paper-id "$pid" \
-        $SHENLUN_FLAG \
-        $HEADED_FLAG \
-        $IMPORT_FLAG; then
+    CMD=(python3 -m examdb fetch fenbi-solution --paper-id "$pid")
+    [ -n "$SHENLUN_FLAG" ] && CMD+=("$SHENLUN_FLAG")
+    [ -n "$HEADED_FLAG" ] && CMD+=("$HEADED_FLAG")
+    [ -n "$IMPORT_FLAG" ] && CMD+=("$IMPORT_FLAG")
+
+    if PYTHONPATH=src "${CMD[@]}"; then
         SUCCESS=$((SUCCESS + 1))
         echo "  ✓ 完成"
     else

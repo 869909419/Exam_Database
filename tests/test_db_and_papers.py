@@ -1,4 +1,5 @@
 import sqlite3
+import subprocess
 import tempfile
 import unittest
 from datetime import date
@@ -16,6 +17,7 @@ from examdb.ingest.qstheory import QSTheorySource
 from examdb.markdown import article_markdown
 from examdb.papers import import_paper
 from examdb.paper_sources import _playwright_command
+from examdb.paper_sources import discover_fenbi_papers
 
 
 class DatabaseAndPaperTests(unittest.TestCase):
@@ -176,6 +178,64 @@ class DatabaseAndPaperTests(unittest.TestCase):
             with patch("examdb.paper_sources.shutil.which", side_effect=fake_which):
                 command = _playwright_command(Paths.from_root(root), script)
             self.assertEqual(command, ["npx", "--yes", "--package", "playwright@1.61.0", "node", str(script)])
+
+    def test_discover_fenbi_papers_preserves_zero_question_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "scripts" / "playwright" / "fenbi_list_papers.mjs"
+            script.parent.mkdir(parents=True)
+            script.write_text("console.log('ok');\n", encoding="utf-8")
+            (root / "node_modules" / "playwright").mkdir(parents=True)
+
+            def fake_run(command, cwd, env, text, capture_output, timeout):
+                output_file = Path(env["FENBI_OUTPUT_FILE"])
+                output_file.write_text(
+                    json.dumps(
+                        {
+                            "papers": [
+                                {"paperId": "paper-zero", "name": "零题测试卷", "exerciseCount": 0},
+                                {"paperId": "paper-missing", "name": "未知题量测试卷"},
+                            ]
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+            with patch("examdb.paper_sources.shutil.which", return_value="/usr/bin/node"):
+                with patch("examdb.paper_sources.subprocess.run", side_effect=fake_run):
+                    listings = discover_fenbi_papers(Paths.from_root(root), label_id="1")
+
+            self.assertEqual(listings[0].question_count, 0)
+            self.assertIsNone(listings[1].question_count)
+
+    def test_obsidian_shell_wrappers_have_valid_syntax_and_reject_bad_flags(self):
+        scripts = [
+            "scripts/obsidian/fetch_fenbi_all.sh",
+            "scripts/obsidian/discover_fenbi_papers.sh",
+            "scripts/obsidian/fenbi_login.sh",
+        ]
+        for script in scripts:
+            with self.subTest(script=script):
+                completed = subprocess.run(["bash", "-n", script], text=True, capture_output=True)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+
+        discover = subprocess.run(
+            ["bash", "scripts/obsidian/discover_fenbi_papers.sh"],
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(discover.returncode, 2)
+        self.assertIn("Usage:", discover.stdout)
+
+        fetch = subprocess.run(
+            ["bash", "scripts/obsidian/fetch_fenbi_all.sh", "--timeout", "300"],
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(fetch.returncode, 2)
+        self.assertIn("Unknown option: --timeout", fetch.stdout)
 
     def test_import_extracts_answers_and_review_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:

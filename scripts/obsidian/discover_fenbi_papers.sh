@@ -14,7 +14,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-LABEL_ID="${1:-1}"
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <label-id> [xingce|shenlun]"
+    echo ""
+    echo "行测 labelId 参考："
+    echo "  1=国考  26=四川  32=重庆  (详见 data/paper_ids/label_ids.md)"
+    echo "申论 labelId = 行测 labelId + 100"
+    exit 2
+fi
+
+LABEL_ID="$1"
 PAPER_KIND="${2:-xingce}"
 
 if [ "$PAPER_KIND" != "xingce" ] && [ "$PAPER_KIND" != "shenlun" ]; then
