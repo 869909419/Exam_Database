@@ -1,0 +1,3 @@
+display_name: Import Exam Papers
+short_description: Import papers into question notes.
+default_prompt: Import this exam paper into structured Markdown and update the exam database.

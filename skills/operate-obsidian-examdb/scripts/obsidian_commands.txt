@@ -1,0 +1,20 @@
+Initialize ExamDB:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/init_examdb.sh
+
+Collect QSTheory materials:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/collect_qstheory_recent.sh
+
+Import inbox papers:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/import_inbox_papers.sh
+
+Generate weekly report:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/generate_weekly_report.sh
+
+List practice questions:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/list_practice_questions.sh
+
+Retag policy articles with DeepSeek:
+DEEPSEEK_API_KEY="你的_key" /Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/retag_policy_articles.sh --apply
+
+Sync manually edited article metadata to SQLite:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/sync_policy_article_metadata.sh --only-changed --apply

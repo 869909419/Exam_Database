@@ -1,0 +1,3 @@
+display_name: Classify Exam Questions
+short_description: Classify exam question metadata.
+default_prompt: Classify these exam questions using the project taxonomy and update metadata.

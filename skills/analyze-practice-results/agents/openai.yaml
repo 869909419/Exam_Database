@@ -1,0 +1,3 @@
+display_name: Analyze Practice Results
+short_description: Analyze practice mistakes.
+default_prompt: Analyze recent practice results and generate a review report in the vault.

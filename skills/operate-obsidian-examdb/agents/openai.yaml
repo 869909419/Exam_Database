@@ -1,0 +1,4 @@
+interface:
+  display_name: "Operate Obsidian ExamDB"
+  short_description: "Run ExamDB from Obsidian."
+  default_prompt: "Operate the Obsidian exam database using the project scripts and vault conventions."

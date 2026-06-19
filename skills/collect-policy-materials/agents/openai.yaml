@@ -1,0 +1,3 @@
+display_name: Collect Policy Materials
+short_description: Collect clean policy articles.
+default_prompt: Collect recent public policy materials into the exam vault with clean Markdown and stable metadata.

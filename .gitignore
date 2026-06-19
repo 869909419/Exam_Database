@@ -1,0 +1,47 @@
+## System files
+.DS_Store
+**/.DS_Store
+
+## Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+## Python caches and build artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+## Local app and automation caches
+.playwright-cli/
+playwright-report/
+test-results/
+
+## Local Obsidian UI state
+.obsidian/workspace.json
+.obsidian/plugins/obsidian-shellcommands/main.js
+vault/
+
+## Local data stores and generated source data
+.env.local
+scripts/obsidian/.env.local
+data/db/*.sqlite
+data/db/*.sqlite-*
+data/raw/**
+data/processed/**
+data/auth/**
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+## Downloaded article and paper attachments
