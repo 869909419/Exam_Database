@@ -4,6 +4,7 @@ import unittest
 from datetime import date
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from examdb import db
 from examdb.config import Paths
@@ -14,6 +15,7 @@ from examdb.ingest.pipeline import SOURCES, article_discovery_limit, article_ima
 from examdb.ingest.qstheory import QSTheorySource
 from examdb.markdown import article_markdown
 from examdb.papers import import_paper
+from examdb.paper_sources import _playwright_command
 
 
 class DatabaseAndPaperTests(unittest.TestCase):
@@ -150,6 +152,31 @@ class DatabaseAndPaperTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["download_status"], "pending")
 
+    def test_playwright_command_prefers_project_dependency(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "scripts" / "playwright" / "fenbi_auth.mjs"
+            script.parent.mkdir(parents=True)
+            script.write_text("console.log('ok');\n", encoding="utf-8")
+            (root / "node_modules" / "playwright").mkdir(parents=True)
+            with patch("examdb.paper_sources.shutil.which", return_value="/usr/bin/node"):
+                command = _playwright_command(Paths.from_root(root), script)
+            self.assertEqual(command, ["node", str(script)])
+
+    def test_playwright_command_uses_pinned_npx_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "scripts" / "playwright" / "fenbi_auth.mjs"
+            script.parent.mkdir(parents=True)
+            script.write_text("console.log('ok');\n", encoding="utf-8")
+
+            def fake_which(binary):
+                return "/usr/bin/npx" if binary == "npx" else None
+
+            with patch("examdb.paper_sources.shutil.which", side_effect=fake_which):
+                command = _playwright_command(Paths.from_root(root), script)
+            self.assertEqual(command, ["npx", "--yes", "--package", "playwright@1.61.0", "node", str(script)])
+
     def test_import_extracts_answers_and_review_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -250,6 +277,29 @@ class DatabaseAndPaperTests(unittest.TestCase):
             self.assertIn("## 第 3 题", group_text)
             self.assertFalse((root / "vault" / "题库" / "题目卡片" / f"{paper.id}-2.md").exists())
 
+    def test_import_fenbi_solution_handles_slashes_in_title_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fixture = _fenbi_solution_fixture()
+            fixture["name"] = "2025年四川省考/选调公务员录用考试《行测》试题（网友回忆版）"
+            solution_file = root / "solution.json"
+            solution_file.write_text(json.dumps(fixture, ensure_ascii=False), encoding="utf-8")
+            paper = import_fenbi_solution(solution_file, Paths.from_root(root))
+            self.assertEqual(paper.year, 2025)
+            self.assertEqual(paper.region, "四川")
+            self.assertEqual(paper.exam_type, "省考")
+            self.assertIn("2025-四川-行测", paper.markdown_path)
+
+    def test_parse_fenbi_shenlun_solution_uses_accessories_as_explanation(self):
+        questions = parse_fenbi_solution(_fenbi_shenlun_fixture(), paper_id="fenbi-shenlun", paper_kind="申论")
+        self.assertEqual(len(questions), 1)
+        self.assertEqual(questions[0].options, {})
+        self.assertEqual(questions[0].question_type, "归纳概括")
+        self.assertEqual(questions[0].question_format, "主观题")
+        self.assertEqual(questions[0].explanation_status, "fetched")
+        self.assertIn("## 参考答案", questions[0].explanation)
+        self.assertIn("## 解题思路", questions[0].explanation)
+
 
 def _fenbi_solution_fixture():
     return {
@@ -308,6 +358,45 @@ def _fenbi_solution_fixture():
                         {"key": "3_1_q3", "nodeType": 2, "materialKeys": ["4_1_material"]},
                     ],
                 },
+            ],
+        },
+    }
+
+
+def _fenbi_shenlun_fixture():
+    return {
+        "name": "2026年四川省公考《申论》题（县乡、普通选调卷）",
+        "materials": [
+            {
+                "globalId": "m1",
+                "content": "<p>某地推动工业文旅融合发展。</p>",
+            }
+        ],
+        "solutions": [
+            {
+                "id": 1,
+                "globalId": "q1",
+                "content": "<p>请根据给定资料，概括主要做法。</p>",
+                "type": 21,
+                "accessories": [
+                    {"materialIndexes": [1], "wordCount": 250, "score": 15, "type": 182},
+                    {"label": "material_topic_class", "options": [{"intOptionId": 426, "optionDesc": None}], "type": 190},
+                ],
+                "solutionAccessories": [
+                    {"label": "reference", "content": "<p>加强顶层设计，开放现代工厂。</p>"},
+                    {"label": "demonstrate", "content": "<p>围绕做法分条概括。</p>"},
+                ],
+                "keypoints": [{"id": 217, "name": "概括措施类"}],
+            }
+        ],
+        "card": {
+            "nodeType": 0,
+            "children": [
+                {
+                    "name": "申论",
+                    "nodeType": 1,
+                    "children": [{"key": "q1", "nodeType": 2, "materialKeys": ["m1"]}],
+                }
             ],
         },
     }

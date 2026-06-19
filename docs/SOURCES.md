@@ -117,6 +117,15 @@ vault/资料库/政策理论/qstheory/2026/2026年第12期/附件/本期导读/0
 
 PDF 仍保留为原始套卷归档备份，不再作为粉笔首选切分入口。
 
+粉笔自动化脚本使用项目内固定版本 Playwright。首次运行前建议安装一次本地依赖和 Chromium：
+
+```bash
+npm install
+npm run playwright:install
+```
+
+如果没有本地 `node_modules/playwright`，命令会回退到 `npx --package playwright@1.61.0`。为了减少临时下载和浏览器版本差异，长期使用建议保留项目内依赖。
+
 登录态保存命令：
 
 ```bash
@@ -136,6 +145,28 @@ PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
 data/auth/fenbi/storage-state.json
 ```
 
+按粉笔 `labelId` 发现套卷列表并保存原始列表 JSON：
+
+```bash
+PYTHONPATH=src python3 -m examdb discover fenbi-papers \
+  --label-id 1 \
+  --paper-kind xingce
+```
+
+申论列表使用 `shenlun`：
+
+```bash
+PYTHONPATH=src python3 -m examdb discover fenbi-papers \
+  --label-id 1 \
+  --paper-kind shenlun
+```
+
+列表结果会保存到：
+
+```text
+data/raw/papers/fenbi/paper-list/<paper-kind>-<label-id>.json
+```
+
 按粉笔 `paperId` 自动创建练习、空白交卷并保存 `static/solution` JSON：
 
 ```bash
@@ -144,6 +175,15 @@ PYTHONPATH=src python3 -m examdb fetch fenbi-solution \
   --expected-question-count 135 \
   --expected-sections 常识判断,言语理解与表达,数量关系,判断推理,资料分析 \
   --strict
+```
+
+申论套卷走粉笔申论接口，解析 `solutionAccessories` 中的参考答案、解题思路和知识拓展：
+
+```bash
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution \
+  --paper-id 222388 \
+  --shenlun \
+  --import
 ```
 
 `2025` 年之前的国考行测通常使用传统五板块：

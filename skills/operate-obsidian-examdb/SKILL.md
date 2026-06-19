@@ -11,7 +11,7 @@ Use this skill as the Obsidian-facing entrypoint for ExamDB. It maps vault actio
 
 ## Workflow
 
-1. Identify the requested Obsidian action: initialize, collect policy materials, import inbox papers, list practice questions, or generate a weekly report.
+1. Identify the requested Obsidian action: initialize, collect policy materials, import inbox papers, fetch Fenbi papers, list practice questions, or generate a weekly report.
 2. Prefer wrapper scripts in `scripts/obsidian/` instead of calling Python modules directly.
 3. After running a script, verify the relevant vault folder:
    - `vault/资料库/政策理论/`
@@ -34,6 +34,16 @@ scripts/obsidian/generate_weekly_report.sh
 scripts/obsidian/list_practice_questions.sh
 scripts/obsidian/retag_policy_articles.sh
 scripts/obsidian/sync_policy_article_metadata.sh
+```
+
+Fenbi paper discovery and solution import currently use direct CLI commands from the project root:
+
+```bash
+PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --import
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --shenlun --import
 ```
 
 ## References

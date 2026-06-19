@@ -11,7 +11,14 @@ from .enrichment import enrich_explanations
 from .fenbi import import_fenbi_solution, parse_fenbi_solution
 from .ingest import ingest_articles
 from .markdown import write_question_cards
-from .paper_sources import auth_fenbi_login, discover_paper_candidates, download_paper_candidates, fetch_fenbi_solution, verify_fenbi_login
+from .paper_sources import (
+    auth_fenbi_login,
+    discover_fenbi_papers,
+    discover_paper_candidates,
+    download_paper_candidates,
+    fetch_fenbi_solution,
+    verify_fenbi_login,
+)
 from .papers import import_paper
 from .practice import list_questions
 from .reports import weekly_report
@@ -78,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_fenbi.add_argument("--timeout", type=int, default=180)
     fetch_fenbi.add_argument("--delay-ms", type=int, default=1500)
     fetch_fenbi.add_argument("--paper-kind", default="行测")
+    fetch_fenbi.add_argument("--shenlun", action="store_true", help="Shortcut for --paper-kind 申论 and routecs=shenlun.")
     fetch_fenbi.add_argument("--expected-sections", help="Comma-separated section names to validate after fetch.")
     fetch_fenbi.add_argument("--expected-question-count", type=int)
     fetch_fenbi.add_argument("--strict", action="store_true")
@@ -95,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
     discover_papers.add_argument("--source", required=True)
     discover_papers.add_argument("--query", required=True)
     discover_papers.add_argument("--limit", type=int)
+    discover_fenbi = discover_sub.add_parser("fenbi-papers", help="Discover Fenbi paper ids by label id.")
+    discover_fenbi.add_argument("--label-id", required=True, help="Fenbi labelId from the paper list API/page.")
+    discover_fenbi.add_argument("--paper-kind", choices=("xingce", "shenlun"), default="xingce")
+    discover_fenbi.add_argument("--page-size", type=int, default=50)
+    discover_fenbi.add_argument("--headed", action="store_true")
+    discover_fenbi.add_argument("--timeout", type=int, default=180)
 
     download = subparsers.add_parser("download", help="Download discovered source materials.")
     download_sub = download.add_subparsers(dest="kind", required=True)
@@ -224,16 +238,19 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.command == "fetch" and args.kind == "fenbi-solution":
+        paper_kind = "申论" if args.shenlun else args.paper_kind
+        routecs = "shenlun" if paper_kind == "申论" else args.routecs
         result = fetch_fenbi_solution(
             paths,
             paper_id=args.paper_id,
-            routecs=args.routecs,
+            routecs=routecs,
             prefix=args.prefix,
             categories=args.categories,
             font_exer_id=args.font_exer_id,
             headed=args.headed,
             timeout_seconds=args.timeout,
             delay_ms=args.delay_ms,
+            paper_kind=paper_kind,
         )
         if result.status != "downloaded":
             print(f"Fenbi solution fetch blocked: {result.blocked_reason}")
@@ -245,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.expected_sections or args.expected_question_count is not None:
             check_status = _inspect_fenbi_solution(
                 solution_file,
-                paper_kind=args.paper_kind,
+                paper_kind=paper_kind,
                 expected_sections=args.expected_sections,
                 expected_question_count=args.expected_question_count,
                 strict=args.strict,
@@ -257,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
                 solution_file,
                 paths=paths,
                 source_url=result.source_url,
-                paper_kind=args.paper_kind,
+                paper_kind=paper_kind,
             )
             print(f"Imported Fenbi solution {paper.id}: {paper.markdown_path} ({paper.question_count} questions)")
         return 0
@@ -278,6 +295,30 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {candidate.download_url or candidate.url}")
             if candidate.blocked_reason:
                 print(f"  blocked: {candidate.blocked_reason}")
+        return 0
+
+    if args.command == "discover" and args.kind == "fenbi-papers":
+        try:
+            listings = discover_fenbi_papers(
+                paths,
+                label_id=args.label_id,
+                paper_kind=args.paper_kind,
+                page_size=args.page_size,
+                headed=args.headed,
+                timeout_seconds=args.timeout,
+            )
+        except RuntimeError as exc:
+            print(f"Fenbi paper discovery blocked: {exc}")
+            return 2
+        print(f"Discovered {len(listings)} Fenbi papers")
+        for listing in listings:
+            details = []
+            if listing.date:
+                details.append(listing.date)
+            if listing.question_count:
+                details.append(f"{listing.question_count} questions")
+            suffix = f" ({', '.join(details)})" if details else ""
+            print(f"- {listing.paper_id} [{listing.paper_kind}] {listing.title}{suffix}")
         return 0
 
     if args.command == "download" and args.kind == "papers":

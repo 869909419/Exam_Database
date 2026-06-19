@@ -17,6 +17,13 @@ from .taxonomy import suggest_question_format, suggest_question_metadata, valida
 
 
 CHOICE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+SHENLUN_TYPE_MAP = {
+    21: "归纳概括",
+    22: "综合分析",
+    23: "提出对策",
+    24: "贯彻执行",
+    25: "文章写作",
+}
 
 
 def import_fenbi_solution(
@@ -31,7 +38,8 @@ def import_fenbi_solution(
     digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
     paper_id = f"fenbi-{digest}"
 
-    inferred_exam_type, region, year, exam_category, inferred_paper_kind = infer_paper_metadata(Path(f"{title}.md"))
+    metadata_title = title.replace("/", "-")
+    inferred_exam_type, region, year, exam_category, inferred_paper_kind = infer_paper_metadata(Path(f"{metadata_title}.md"))
     paper_kind = validate_paper_kind(paper_kind or inferred_paper_kind)
 
     raw_path = _archive_fenbi_json(file_path, paths, paper_id)
@@ -83,7 +91,7 @@ def parse_fenbi_solution(payload: dict[str, Any], paper_id: str, paper_kind: str
         question_type = _question_type(module_name, item, options, paper_kind)
         knowledge_points = _knowledge_points(item, module_name)
         answer = _correct_answer(item.get("correctAnswer"))
-        explanation = _html_to_markdown(str(item.get("solution") or ""))
+        explanation = _explanation(item, paper_kind)
         question_format = _question_format(item, options, paper_kind)
         questions.append(
             Question(
@@ -161,7 +169,7 @@ def _source_span(global_id: str, material_keys: list[str]) -> str:
 def _options(item: dict[str, Any]) -> dict[str, str]:
     for accessory in item.get("accessories") or []:
         raw_options = accessory.get("options")
-        if isinstance(raw_options, list):
+        if isinstance(raw_options, list) and all(isinstance(option, str) for option in raw_options):
             return {
                 CHOICE_LETTERS[index]: _html_to_markdown(str(option))
                 for index, option in enumerate(raw_options)
@@ -191,6 +199,13 @@ def _correct_answer(value: Any) -> str | None:
 
 
 def _question_type(module_name: str | None, item: dict[str, Any], options: dict[str, str], paper_kind: str | None) -> str | None:
+    if paper_kind == "申论":
+        type_code = item.get("type")
+        if isinstance(type_code, int) and type_code in SHENLUN_TYPE_MAP:
+            return validate_question_type(SHENLUN_TYPE_MAP[type_code])
+        suggestion = suggest_question_metadata(_html_to_markdown(str(item.get("content") or "")), options, paper_kind=paper_kind)
+        return validate_question_type(suggestion.tags[0] if suggestion.tags else None)
+
     mapping = {
         "政治理论": "常识判断",
         "言语理解与表达": "言语理解",
@@ -206,6 +221,8 @@ def _question_type(module_name: str | None, item: dict[str, Any], options: dict[
 
 
 def _question_format(item: dict[str, Any], options: dict[str, str], paper_kind: str | None) -> str:
+    if paper_kind == "申论":
+        return suggest_question_format(_html_to_markdown(str(item.get("content") or "")), options, paper_kind=paper_kind)
     correct = item.get("correctAnswer")
     if isinstance(correct, dict) and str(correct.get("type") or "") in {"202", "203"}:
         return "多选"
@@ -220,6 +237,27 @@ def _knowledge_points(item: dict[str, Any], module_name: str | None) -> list[str
         if isinstance(point, dict) and point.get("name"):
             points.append(str(point["name"]))
     return list(dict.fromkeys(points))
+
+
+def _explanation(item: dict[str, Any], paper_kind: str | None) -> str:
+    if paper_kind != "申论":
+        return _html_to_markdown(str(item.get("solution") or ""))
+
+    labels = {
+        "reference": "参考答案",
+        "demonstrate": "解题思路",
+        "zstz": "知识拓展",
+    }
+    parts: list[str] = []
+    for accessory in item.get("solutionAccessories") or []:
+        if not isinstance(accessory, dict):
+            continue
+        label = str(accessory.get("label") or "")
+        title = labels.get(label)
+        content = _html_to_markdown(str(accessory.get("content") or ""))
+        if title and content:
+            parts.append(f"## {title}\n\n{content}")
+    return "\n\n".join(parts)
 
 
 def _solution_body_markdown(title: str, payload: dict[str, Any], questions: list[Question]) -> str:

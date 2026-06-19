@@ -18,3 +18,21 @@ DEEPSEEK_API_KEY="你的_key" /Users/liuyigedabu/Documents/Exam_Database/scripts
 
 Sync manually edited article metadata to SQLite:
 /Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/sync_policy_article_metadata.sh --only-changed --apply
+
+Install local Playwright for Fenbi:
+cd /Users/liuyigedabu/Documents/Exam_Database && npm install && npm run playwright:install
+
+Fenbi manual login:
+cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
+
+Discover Fenbi Xingce papers:
+cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
+
+Discover Fenbi Shenlun papers:
+cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
+
+Fetch and import Fenbi Xingce solution:
+cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --import
+
+Fetch and import Fenbi Shenlun solution:
+cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --shenlun --import

@@ -45,3 +45,5 @@ data/auth/**
 !data/processed/.gitkeep
 
 ## Downloaded article and paper attachments
+# Attachments (images, PDFs) inside vault/_attachments/ are covered by the `vault/` rule above.
+# External paper/article downloads are covered by data/raw/** and data/processed/**.

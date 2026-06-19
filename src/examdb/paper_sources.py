@@ -46,6 +46,18 @@ class FenbiFetchResult:
     blocked_reason: str | None = None
 
 
+@dataclass
+class FenbiPaperListing:
+    paper_id: str
+    title: str
+    paper_kind: str
+    label_id: str
+    date: str | None = None
+    difficulty: str | None = None
+    question_count: int | None = None
+    combine_key: str | None = None
+
+
 def discover_paper_candidates(paths: Paths, source_id: str, query: str, limit: int | None = None) -> list[PaperCandidate]:
     paths.ensure()
     conn = db.connect(paths.db)
@@ -57,6 +69,68 @@ def discover_paper_candidates(paths: Paths, source_id: str, query: str, limit: i
     for candidate in candidates:
         db.upsert_paper_candidate(conn, candidate)
     return candidates
+
+
+def discover_fenbi_papers(
+    paths: Paths,
+    *,
+    label_id: str,
+    paper_kind: str = "xingce",
+    page_size: int = 50,
+    headed: bool = False,
+    timeout_seconds: int = 180,
+) -> list[FenbiPaperListing]:
+    paths.ensure()
+    script = paths.root / "scripts" / "playwright" / "fenbi_list_papers.mjs"
+    try:
+        command = _playwright_command(paths, script)
+    except RuntimeError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+    auth_state = paths.root / "data" / "auth" / "fenbi" / "storage-state.json"
+    output_file = paths.raw / "papers" / "fenbi" / "paper-list" / f"{paper_kind}-{label_id}.json"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    if auth_state.exists():
+        env["FENBI_AUTH_STATE"] = str(auth_state)
+    env["FENBI_LABEL_ID"] = label_id
+    env["FENBI_PAPER_KIND"] = paper_kind
+    env["FENBI_PAGE_SIZE"] = str(page_size)
+    env["FENBI_OUTPUT_FILE"] = str(output_file)
+    env["FENBI_HEADLESS"] = "0" if headed else "1"
+    env["FENBI_TIMEOUT_MS"] = str(timeout_seconds * 1000)
+
+    try:
+        completed = subprocess.run(command, cwd=paths.root, env=env, text=True, capture_output=True, timeout=timeout_seconds + 30)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("fenbi paper discovery timed out") from exc
+    if completed.returncode != 0:
+        reason = _sanitize_playwright_output(completed.stderr or completed.stdout)
+        raise RuntimeError(reason or "fenbi paper discovery failed")
+    try:
+        payload = json.loads(output_file.read_text(encoding="utf-8")) if output_file.exists() else _last_json_line(completed.stdout)
+    except Exception as exc:
+        raise RuntimeError(f"could not parse fenbi paper discovery result: {exc}") from exc
+
+    listings: list[FenbiPaperListing] = []
+    for item in payload.get("papers") or []:
+        paper_id = str(item.get("paperId") or "")
+        title = str(item.get("name") or "")
+        if not paper_id or not title:
+            continue
+        listings.append(
+            FenbiPaperListing(
+                paper_id=paper_id,
+                title=title,
+                paper_kind=paper_kind,
+                label_id=label_id,
+                date=str(item.get("date") or "") or None,
+                difficulty=str(item.get("difficulty") or "") or None,
+                question_count=int(item.get("exerciseCount") or 0) or None,
+                combine_key=str(item.get("combineKey") or "") or None,
+            )
+        )
+    return listings
 
 
 def download_paper_candidates(paths: Paths, source_id: str | None = None, limit: int | None = None) -> list[DownloadResult]:
@@ -96,20 +170,20 @@ def verify_fenbi_login(paths: Paths, sample_url: str | None = None, timeout_seco
             status="blocked",
             blocked_reason="missing FENBI_USERNAME or FENBI_PASSWORD",
         )
-    if shutil.which("npx") is None:
-        return DownloadResult(candidate_id="fenbi-login", status="blocked", blocked_reason="npx is not installed")
-
     auth_dir = paths.root / "data" / "auth" / "fenbi"
     download_dir = paths.raw / "papers" / "fenbi" / "verification"
     auth_dir.mkdir(parents=True, exist_ok=True)
     download_dir.mkdir(parents=True, exist_ok=True)
     script = paths.root / "scripts" / "playwright" / "fenbi_verify.mjs"
+    try:
+        command = _playwright_command(paths, script)
+    except RuntimeError as exc:
+        return DownloadResult(candidate_id="fenbi-login", status="blocked", blocked_reason=str(exc))
     env = os.environ.copy()
     env["FENBI_AUTH_DIR"] = str(auth_dir)
     env["FENBI_DOWNLOAD_DIR"] = str(download_dir)
     if sample_url:
         env["FENBI_SAMPLE_URL"] = sample_url
-    command = ["npx", "--yes", "--package", "playwright", "node", str(script)]
     try:
         completed = subprocess.run(command, cwd=paths.root, env=env, text=True, capture_output=True, timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
@@ -131,8 +205,6 @@ def auth_fenbi_login(
     timeout_seconds: int = 180,
 ) -> DownloadResult:
     paths.ensure()
-    if shutil.which("npx") is None:
-        return DownloadResult(candidate_id="fenbi-login", status="blocked", blocked_reason="npx is not installed")
     if not manual and (not os.environ.get("FENBI_USERNAME") or not os.environ.get("FENBI_PASSWORD")):
         return DownloadResult(
             candidate_id="fenbi-login",
@@ -143,12 +215,15 @@ def auth_fenbi_login(
     auth_dir = paths.root / "data" / "auth" / "fenbi"
     auth_dir.mkdir(parents=True, exist_ok=True)
     script = paths.root / "scripts" / "playwright" / "fenbi_auth.mjs"
+    try:
+        command = _playwright_command(paths, script)
+    except RuntimeError as exc:
+        return DownloadResult(candidate_id="fenbi-login", status="blocked", blocked_reason=str(exc))
     env = os.environ.copy()
     env["FENBI_AUTH_DIR"] = str(auth_dir)
     env["FENBI_HEADLESS"] = "0" if headed or manual else "1"
     env["FENBI_MANUAL_LOGIN"] = "1" if manual else "0"
     env["FENBI_TIMEOUT_MS"] = str(timeout_seconds * 1000)
-    command = ["npx", "--yes", "--package", "playwright", "node", str(script)]
     try:
         completed = subprocess.run(command, cwd=paths.root, env=env, text=True, capture_output=True, timeout=timeout_seconds + 30)
     except subprocess.TimeoutExpired:
@@ -173,10 +248,9 @@ def fetch_fenbi_solution(
     headed: bool = False,
     timeout_seconds: int = 180,
     delay_ms: int = 1500,
+    paper_kind: str = "行测",
 ) -> FenbiFetchResult:
     paths.ensure()
-    if shutil.which("npx") is None:
-        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, status="blocked", blocked_reason="npx is not installed")
     auth_state = paths.root / "data" / "auth" / "fenbi" / "storage-state.json"
     if not auth_state.exists():
         return FenbiFetchResult(
@@ -189,7 +263,12 @@ def fetch_fenbi_solution(
     output_dir = paths.raw / "papers" / "fenbi" / f"paper-{paper_id}"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / "solution.json"
-    script = paths.root / "scripts" / "playwright" / "fenbi_fetch_solution.mjs"
+    script_name = "fenbi_fetch_shenlun_solution.mjs" if paper_kind == "申论" or routecs == "shenlun" else "fenbi_fetch_solution.mjs"
+    script = paths.root / "scripts" / "playwright" / script_name
+    try:
+        command = _playwright_command(paths, script)
+    except RuntimeError as exc:
+        return FenbiFetchResult(paper_id=paper_id, exercise_key=None, status="blocked", blocked_reason=str(exc))
     env = os.environ.copy()
     env["FENBI_AUTH_STATE"] = str(auth_state)
     env["FENBI_PAPER_ID"] = paper_id
@@ -201,7 +280,6 @@ def fetch_fenbi_solution(
     env["FENBI_HEADLESS"] = "0" if headed else "1"
     env["FENBI_TIMEOUT_MS"] = str(timeout_seconds * 1000)
     env["FENBI_DELAY_MS"] = str(delay_ms)
-    command = ["npx", "--yes", "--package", "playwright", "node", str(script)]
     try:
         completed = subprocess.run(command, cwd=paths.root, env=env, text=True, capture_output=True, timeout=timeout_seconds + 30)
     except subprocess.TimeoutExpired:
@@ -217,11 +295,23 @@ def fetch_fenbi_solution(
         return FenbiFetchResult(paper_id=paper_id, exercise_key=payload.get("exerciseKey"), status="blocked", blocked_reason="solution file was not saved")
     return FenbiFetchResult(
         paper_id=paper_id,
-        exercise_key=payload.get("exerciseKey"),
+        exercise_key=payload.get("exerciseKey") or payload.get("combineKey"),
         status="downloaded",
         path=str(output_file.relative_to(paths.root)),
         source_url=payload.get("sourceUrl"),
     )
+
+
+def _playwright_command(paths: Paths, script: Path) -> list[str]:
+    if not script.exists():
+        raise RuntimeError(f"playwright script not found: {script.relative_to(paths.root)}")
+    if (paths.root / "node_modules" / "playwright").exists():
+        if shutil.which("node") is None:
+            raise RuntimeError("node is not installed")
+        return ["node", str(script)]
+    if shutil.which("npx") is None:
+        raise RuntimeError("Playwright is not installed; run npm install in the project root or install npx")
+    return ["npx", "--yes", "--package", "playwright@1.61.0", "node", str(script)]
 
 
 def download_pdf(url: str, path: Path) -> Path:

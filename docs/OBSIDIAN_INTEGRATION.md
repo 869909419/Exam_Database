@@ -48,6 +48,51 @@ scripts/obsidian/generate_weekly_report.sh
 scripts/obsidian/list_practice_questions.sh
 ```
 
+粉笔真题链路使用 Playwright。首次运行前，在项目根目录安装一次本地依赖：
+
+```bash
+npm install
+npm run playwright:install
+```
+
+登录态保存到 `data/auth/fenbi/storage-state.json`，不要提交。遇到验证码或短信验证时，用可见浏览器手动登录：
+
+```bash
+PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
+```
+
+发现粉笔行测套卷：
+
+```bash
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
+```
+
+发现粉笔申论套卷：
+
+```bash
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
+```
+
+抓取并导入行测解析：
+
+```bash
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution \
+  --paper-id 222388 \
+  --expected-question-count 135 \
+  --expected-sections 常识判断,言语理解与表达,数量关系,判断推理,资料分析 \
+  --strict \
+  --import
+```
+
+抓取并导入申论解析：
+
+```bash
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution \
+  --paper-id 222388 \
+  --shenlun \
+  --import
+```
+
 DeepSeek key 可以写入脚本旁的私有配置文件。先复制模板：
 
 ```bash
@@ -150,6 +195,16 @@ PYTHONPATH=src python3 -m examdb ingest articles --source gov-policy --since 202
 PYTHONPATH=src python3 -m examdb ingest articles --source xinhua-politics --since 2025-06-17 --limit 3
 PYTHONPATH=src python3 -m examdb ingest articles --source sichuan-gov --since 2025-06-17 --limit 3
 PYTHONPATH=src python3 -m examdb ingest articles --source chongqing-gov --since 2025-06-17 --limit 3
+```
+
+粉笔真题底层 CLI：
+
+```bash
+PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
+PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --import
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --shenlun --import
 ```
 
 DeepSeek retag 的底层 CLI：
