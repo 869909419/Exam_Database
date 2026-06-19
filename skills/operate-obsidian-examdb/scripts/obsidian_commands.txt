@@ -4,6 +4,9 @@ Initialize ExamDB:
 Collect QSTheory materials:
 /Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/collect_qstheory_recent.sh
 
+Collect People Commentary:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/collect_people_commentary_recent.sh
+
 Import inbox papers:
 /Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/import_inbox_papers.sh
 
@@ -22,17 +25,26 @@ Sync manually edited article metadata to SQLite:
 Install local Playwright for Fenbi:
 cd /Users/liuyigedabu/Documents/Exam_Database && npm install && npm run playwright:install
 
-Fenbi manual login:
+Fenbi manual login (Shell wrapper):
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fenbi_login.sh
+
+Fenbi manual login (底层 CLI):
 cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
 
-Discover Fenbi Xingce papers:
+Discover Fenbi papers (Shell wrapper):
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/discover_fenbi_papers.sh 1 xingce
+
+Discover Fenbi papers (底层 CLI):
 cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
 
-Discover Fenbi Shenlun papers:
-cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind shenlun
+Fetch and import single Fenbi paper (Shell wrapper):
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fetch_fenbi_paper.sh 222388 --import
 
-Fetch and import Fenbi Xingce solution:
+Fetch and import single Fenbi paper (底层 CLI):
 cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --import
 
-Fetch and import Fenbi Shenlun solution:
-cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --shenlun --import
+Batch fetch Fenbi papers from ID file:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt
+
+Batch fetch Fenbi papers from discover JSON:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json

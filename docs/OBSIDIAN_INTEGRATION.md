@@ -29,6 +29,10 @@ Obsidian 本身不直接执行 Python CLI。第一版支持两种入口：
 - `list_practice_questions.sh`
 - `retag_policy_articles.sh`
 - `sync_policy_article_metadata.sh`
+- `fenbi_login.sh`
+- `discover_fenbi_papers.sh`
+- `fetch_fenbi_paper.sh`
+- `fetch_fenbi_all.sh`
 
 这些脚本会自动切到项目根目录，并设置 `PYTHONPATH=src`。
 
@@ -55,7 +59,25 @@ npm install
 npm run playwright:install
 ```
 
-登录态保存到 `data/auth/fenbi/storage-state.json`，不要提交。遇到验证码或短信验证时，用可见浏览器手动登录：
+登录态保存到 `data/auth/fenbi/storage-state.json`，不要提交。
+
+### Shell Wrapper（推荐）
+
+```bash
+scripts/obsidian/fenbi_login.sh                                   # 手动登录
+scripts/obsidian/discover_fenbi_papers.sh 1 xingce               # 发现国考行测
+scripts/obsidian/discover_fenbi_papers.sh 26 shenlun             # 发现四川省考申论
+scripts/obsidian/fetch_fenbi_paper.sh 222388 --import            # 单套行测
+scripts/obsidian/fetch_fenbi_paper.sh 222388 --shenlun --import  # 单套申论
+scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt  # 批量抓取
+scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json
+```
+
+labelId 参考表见 `data/paper_ids/label_ids.md`。
+
+### 底层 CLI（同样可用）
+
+遇到验证码或短信验证时，用可见浏览器手动登录：
 
 ```bash
 PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
