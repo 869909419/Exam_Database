@@ -5,12 +5,13 @@ import path from "node:path";
 const authState = process.env.FENBI_AUTH_STATE;
 const labelId = process.env.FENBI_LABEL_ID || "1";
 const paperKind = process.env.FENBI_PAPER_KIND || "xingce";
-const pageSize = Number(process.env.FENBI_PAGE_SIZE || 50);
+const pageSize = parseIntegerEnv("FENBI_PAGE_SIZE", 50, { min: 1 });
 const outputFile = process.env.FENBI_OUTPUT_FILE || "";
-const headless = process.env.FENBI_HEADLESS !== "0";
-const timeoutMs = Number(process.env.FENBI_TIMEOUT_MS || 180000);
-const networkIdleTimeout = Number(process.env.FENBI_NETWORK_IDLE_MS || 15000);
-const scrollDelayMs = Number(process.env.FENBI_SCROLL_DELAY_MS || 800);
+const headless = parseHeadless(process.env.FENBI_HEADLESS);
+const timeoutMs = parseIntegerEnv("FENBI_TIMEOUT_MS", 180000, { min: 1 });
+const networkIdleTimeout = parseIntegerEnv("FENBI_NETWORK_IDLE_MS", 15000, { min: 1 });
+const scrollDelayMs = parseIntegerEnv("FENBI_SCROLL_DELAY_MS", 800, { min: 0 });
+const maxPages = parseIntegerEnv("FENBI_MAX_PAGES", 20, { min: 1 });
 
 if (!["xingce", "shenlun"].includes(paperKind)) {
   console.error("FENBI_PAPER_KIND must be xingce or shenlun");
@@ -31,13 +32,11 @@ const context = await browser.newContext(authState ? { storageState: authState }
 const page = await context.newPage();
 
 try {
-  const apiUrl = `https://tiku.fenbi.com/api/${paperKind}/comptroller/papers?toPage=0&pageSize=${pageSize}&labelId=${labelId}`;
-
   let papers = [];
   try {
-    const payload = await fetchJson(page, apiUrl, "paper list API");
-    papers = normalizePapers(extractPaperList(payload));
-  } catch {
+    papers = await fetchPaperListFromApi(page);
+  } catch (error) {
+    console.error(`paper list API failed, falling back to page capture: ${error.message}`);
     papers = [];
   }
 
@@ -46,26 +45,27 @@ try {
       ? `https://www.fenbi.com/spa/tiku/guide/realTest/shenlun/shenlun?labelId=${labelId}`
       : `https://www.fenbi.com/spa/tiku/guide/realTest/xingce/xingce?labelId=${labelId}`;
     const captured = [];
+    const pendingResponses = new Set();
     page.on("response", async (response) => {
-      const url = response.url();
-      if (!url.includes("comptroller/papers") && !url.includes(`api/${paperKind}/papers`)) {
+      const pending = capturePaperResponse(response, captured);
+      if (!pending) {
         return;
       }
-      try {
-        const body = await response.text();
-        const data = JSON.parse(body);
-        captured.push(...extractPaperList(data));
-      } catch {
-        // Ignore non-JSON responses from unrelated endpoints.
-      }
+      pendingResponses.add(pending);
+      pending.finally(() => pendingResponses.delete(pending));
     });
-    await page.goto(listUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs }).catch(() => {});
+    await page.goto(listUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs });
     await page.waitForLoadState("networkidle", { timeout: networkIdleTimeout }).catch(() => {});
     for (let index = 0; index < 5; index += 1) {
       await page.evaluate(() => window.scrollBy(0, 800));
       await page.waitForTimeout(scrollDelayMs);
     }
+    await page.waitForLoadState("networkidle", { timeout: networkIdleTimeout }).catch(() => {});
+    await Promise.allSettled(Array.from(pendingResponses));
     papers = normalizePapers(captured);
+    if (papers.length === 0) {
+      throw new Error("no papers discovered from API or fallback page capture");
+    }
   }
 
   const result = {
@@ -88,6 +88,56 @@ try {
   await browser.close();
 }
 
+async function fetchPaperListFromApi(page) {
+  const items = [];
+  for (let toPage = 0; toPage < maxPages; toPage += 1) {
+    const apiUrl = `https://tiku.fenbi.com/api/${paperKind}/comptroller/papers?toPage=${toPage}&pageSize=${pageSize}&labelId=${labelId}`;
+    const payload = await fetchJson(page, apiUrl, `paper list API page ${toPage}`);
+    const pageItems = extractPaperList(payload);
+    items.push(...pageItems);
+    if (pageItems.length < pageSize) {
+      return normalizePapers(items);
+    }
+  }
+  throw new Error(`paper list API reached FENBI_MAX_PAGES=${maxPages}; increase it to continue discovery`);
+}
+
+function capturePaperResponse(response, captured) {
+  const url = response.url();
+  if (!url.includes("comptroller/papers") && !url.includes(`api/${paperKind}/papers`)) {
+    return null;
+  }
+  return (async () => {
+    try {
+      const body = await response.text();
+      const data = JSON.parse(body);
+      captured.push(...extractPaperList(data));
+    } catch {
+      // Ignore non-JSON responses from unrelated endpoints.
+    }
+  })();
+}
+
+function parseIntegerEnv(name, defaultValue, { min } = {}) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") {
+    return defaultValue;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || (min !== undefined && value < min)) {
+    const suffix = min === undefined ? "" : ` >= ${min}`;
+    throw new Error(`${name} must be an integer${suffix}`);
+  }
+  return value;
+}
+
+function parseHeadless(value) {
+  if (value === undefined || value === "") {
+    return true;
+  }
+  return !["0", "false", "no"].includes(value.toLowerCase());
+}
+
 function normalizePapers(items) {
   const seen = new Set();
   const papers = [];
@@ -103,7 +153,7 @@ function normalizePapers(items) {
       name,
       date: item.date || "",
       difficulty: item.paperMeta?.difficulty || "",
-      exerciseCount: item.paperMeta?.exerciseCount || 0,
+      exerciseCount: item.paperMeta?.exerciseCount ?? null,
       combineKey: item.combineKey || "",
     });
   }

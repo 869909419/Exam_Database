@@ -54,10 +54,11 @@ scripts/obsidian/discover_fenbi_papers.sh 26 xingce     # 四川省考行测
 
 # Fetch single paper
 scripts/obsidian/fetch_fenbi_paper.sh 222388 --import
-scripts/obsidian/fetch_fenbi_paper.sh 222388 --shenlun --import
+scripts/obsidian/fetch_fenbi_paper.sh 8055558 --shenlun --import
 
 # Batch fetch from ID file or discover JSON
 scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt
+scripts/obsidian/fetch_fenbi_all.sh --import data/paper_ids/guokao_ids.txt
 scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json
 scripts/obsidian/fetch_fenbi_all.sh --shenlun data/paper_ids/guokao_shenlun_ids.txt
 ```
@@ -68,7 +69,7 @@ scripts/obsidian/fetch_fenbi_all.sh --shenlun data/paper_ids/guokao_shenlun_ids.
 PYTHONPATH=src python3 -m examdb auth fenbi-login --manual --headed
 PYTHONPATH=src python3 -m examdb discover fenbi-papers --label-id 1 --paper-kind xingce
 PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --import
-PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 222388 --shenlun --import
+PYTHONPATH=src python3 -m examdb fetch fenbi-solution --paper-id 8055558 --shenlun --import
 ```
 
 ## References

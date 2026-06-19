@@ -46,5 +46,8 @@ cd /Users/liuyigedabu/Documents/Exam_Database && PYTHONPATH=src python3 -m examd
 Batch fetch Fenbi papers from ID file:
 /Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fetch_fenbi_all.sh data/paper_ids/guokao_ids.txt
 
+Batch fetch and import Fenbi papers from ID file:
+/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fetch_fenbi_all.sh --import data/paper_ids/guokao_ids.txt
+
 Batch fetch Fenbi papers from discover JSON:
 /Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fetch_fenbi_all.sh --from-discover data/raw/papers/fenbi/paper-list/xingce-1.json

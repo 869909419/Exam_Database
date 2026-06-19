@@ -40,8 +40,8 @@ class DownloadResult:
 class FenbiFetchResult:
     paper_id: str
     exercise_key: str | None
-    paper_kind: str = "行测"
     status: str
+    paper_kind: str = "行测"
     path: str | None = None
     source_url: str | None = None
     blocked_reason: str | None = None
@@ -119,6 +119,7 @@ def discover_fenbi_papers(
         title = str(item.get("name") or "")
         if not paper_id or not title:
             continue
+        exercise_count = item.get("exerciseCount")
         listings.append(
             FenbiPaperListing(
                 paper_id=paper_id,
@@ -127,7 +128,7 @@ def discover_fenbi_papers(
                 label_id=label_id,
                 date=str(item.get("date") or "") or None,
                 difficulty=str(item.get("difficulty") or "") or None,
-                question_count=int(item.get("exerciseCount") or 0) or None,
+                question_count=int(exercise_count) if exercise_count is not None else None,
                 combine_key=str(item.get("combineKey") or "") or None,
             )
         )
