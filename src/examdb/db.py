@@ -4,7 +4,17 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .models import ArticleRecord, ExamPaper, PaperCandidate, PracticeAttempt, Question, QuestionSource
+from .models import (
+    ArticleRecord,
+    ExamPaper,
+    PaperCandidate,
+    PracticeAttempt,
+    PracticeSession,
+    PracticeSessionItem,
+    Question,
+    QuestionReview,
+    QuestionSource,
+)
 
 
 def connect(db_path: Path | str) -> sqlite3.Connection:
@@ -115,12 +125,65 @@ def init_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS practice_attempts (
             id TEXT PRIMARY KEY,
             question_id TEXT NOT NULL,
+            session_id TEXT,
+            position INTEGER,
             selected_answer TEXT,
             is_correct INTEGER,
             duration_seconds INTEGER,
             confidence INTEGER,
             note TEXT,
+            mistake_reason TEXT,
+            review_note TEXT,
+            updated_at TEXT,
             attempted_at TEXT NOT NULL,
+            FOREIGN KEY (question_id) REFERENCES questions(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS practice_sessions (
+            id TEXT PRIMARY KEY,
+            mode TEXT NOT NULL,
+            title TEXT NOT NULL,
+            config_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            total_count INTEGER NOT NULL DEFAULT 0,
+            correct_count INTEGER NOT NULL DEFAULT 0,
+            duration_seconds INTEGER,
+            ai_summary TEXT,
+            ai_status TEXT NOT NULL DEFAULT 'not_requested',
+            ai_generated_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS practice_session_items (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            question_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            material_group TEXT,
+            selected_answer TEXT,
+            is_correct INTEGER,
+            duration_seconds INTEGER,
+            answered_at TEXT,
+            review_note TEXT,
+            mistake_reason TEXT,
+            confidence INTEGER,
+            favorite INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (session_id) REFERENCES practice_sessions(id),
+            FOREIGN KEY (question_id) REFERENCES questions(id),
+            UNIQUE(session_id, position)
+        );
+
+        CREATE TABLE IF NOT EXISTS question_reviews (
+            question_id TEXT PRIMARY KEY,
+            mistake_reason TEXT,
+            review_note TEXT,
+            confidence INTEGER,
+            favorite INTEGER NOT NULL DEFAULT 0,
+            last_attempt_id TEXT,
+            last_attempted_at TEXT,
+            markdown_path TEXT,
+            updated_at TEXT NOT NULL,
             FOREIGN KEY (question_id) REFERENCES questions(id)
         );
         """
@@ -137,6 +200,11 @@ def init_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "questions", "question_format", "TEXT")
     ensure_column(conn, "questions", "review_status", "TEXT NOT NULL DEFAULT 'needs_review'")
     ensure_column(conn, "questions", "parse_warnings_json", "TEXT NOT NULL DEFAULT '[]'")
+    ensure_column(conn, "practice_attempts", "session_id", "TEXT")
+    ensure_column(conn, "practice_attempts", "position", "INTEGER")
+    ensure_column(conn, "practice_attempts", "mistake_reason", "TEXT")
+    ensure_column(conn, "practice_attempts", "review_note", "TEXT")
+    ensure_column(conn, "practice_attempts", "updated_at", "TEXT")
     conn.commit()
 
 
@@ -532,19 +600,129 @@ def insert_attempt(conn: sqlite3.Connection, attempt: PracticeAttempt) -> None:
     conn.execute(
         """
         INSERT INTO practice_attempts (
-            id, question_id, selected_answer, is_correct, duration_seconds,
-            confidence, note, attempted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            id, question_id, session_id, position, selected_answer, is_correct,
+            duration_seconds, confidence, note, mistake_reason, review_note,
+            attempted_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             attempt.id,
             attempt.question_id,
+            attempt.session_id,
+            attempt.position,
             attempt.selected_answer,
             None if attempt.is_correct is None else int(attempt.is_correct),
             attempt.duration_seconds,
             attempt.confidence,
             attempt.note,
+            attempt.mistake_reason,
+            attempt.review_note,
             attempt.attempted_at,
+            attempt.updated_at,
+        ),
+    )
+    conn.commit()
+
+
+def upsert_practice_session(conn: sqlite3.Connection, session: PracticeSession) -> None:
+    conn.execute(
+        """
+        INSERT INTO practice_sessions (
+            id, mode, title, config_json, status, started_at, finished_at,
+            total_count, correct_count, duration_seconds, ai_summary,
+            ai_status, ai_generated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            mode=excluded.mode,
+            title=excluded.title,
+            config_json=excluded.config_json,
+            status=excluded.status,
+            started_at=excluded.started_at,
+            finished_at=excluded.finished_at,
+            total_count=excluded.total_count,
+            correct_count=excluded.correct_count,
+            duration_seconds=excluded.duration_seconds,
+            ai_summary=excluded.ai_summary,
+            ai_status=excluded.ai_status,
+            ai_generated_at=excluded.ai_generated_at
+        """,
+        (
+            session.id,
+            session.mode,
+            session.title,
+            json.dumps(session.config, ensure_ascii=False),
+            session.status,
+            session.started_at,
+            session.finished_at,
+            session.total_count,
+            session.correct_count,
+            session.duration_seconds,
+            session.ai_summary,
+            session.ai_status,
+            session.ai_generated_at,
+        ),
+    )
+    conn.commit()
+
+
+def insert_practice_session_items(conn: sqlite3.Connection, items: list[PracticeSessionItem]) -> None:
+    conn.executemany(
+        """
+        INSERT INTO practice_session_items (
+            id, session_id, question_id, position, material_group, selected_answer,
+            is_correct, duration_seconds, answered_at, review_note, mistake_reason,
+            confidence, favorite
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                item.id,
+                item.session_id,
+                item.question_id,
+                item.position,
+                item.material_group,
+                item.selected_answer,
+                None if item.is_correct is None else int(item.is_correct),
+                item.duration_seconds,
+                item.answered_at,
+                item.review_note,
+                item.mistake_reason,
+                item.confidence,
+                int(item.favorite),
+            )
+            for item in items
+        ],
+    )
+    conn.commit()
+
+
+def upsert_question_review(conn: sqlite3.Connection, review: QuestionReview) -> None:
+    conn.execute(
+        """
+        INSERT INTO question_reviews (
+            question_id, mistake_reason, review_note, confidence, favorite,
+            last_attempt_id, last_attempted_at, markdown_path, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(question_id) DO UPDATE SET
+            mistake_reason=excluded.mistake_reason,
+            review_note=excluded.review_note,
+            confidence=excluded.confidence,
+            favorite=excluded.favorite,
+            last_attempt_id=COALESCE(excluded.last_attempt_id, question_reviews.last_attempt_id),
+            last_attempted_at=COALESCE(excluded.last_attempted_at, question_reviews.last_attempted_at),
+            markdown_path=COALESCE(excluded.markdown_path, question_reviews.markdown_path),
+            updated_at=excluded.updated_at
+        """,
+        (
+            review.question_id,
+            review.mistake_reason,
+            review.review_note,
+            review.confidence,
+            int(review.favorite),
+            review.last_attempt_id,
+            review.last_attempted_at,
+            review.markdown_path,
+            review.updated_at,
         ),
     )
     conn.commit()

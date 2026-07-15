@@ -10,11 +10,13 @@ from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
 from examdb import db
+from examdb.collection_profiles import article_matches_keywords, keywords_for_profile, parse_keywords
 from examdb.config import Paths
 from examdb.ingest.gov_policy import GovPolicySource
 from examdb.ingest.local_gov import ChongqingGovSource, SichuanGovSource
+from examdb.ingest.official import CcdiGovSource, MohrssGovSource, MostGovSource, NeacGovSource, StatsGovSource
 from examdb.ingest.people_commentary import PeopleCommentarySource
-from examdb.ingest.qstheory import QSTheorySource
+from examdb.ingest.qstheory import QSTheorySource, QSTheoryWebSource
 from examdb.ingest.placeholders import PlaceholderSource
 from examdb.ingest.xinhua_politics import XinhuaPoliticsSource
 from examdb.markdown import article_markdown, slugify, write_text
@@ -23,15 +25,20 @@ from examdb.models import ArticleRecord
 
 SOURCES = {
     "qstheory": QSTheorySource,
+    "qstheory-web": QSTheoryWebSource,
     "people-daily": lambda: PlaceholderSource("people-daily"),
     "people-commentary": PeopleCommentarySource,
     "gov": GovPolicySource,
     "gov-policy": GovPolicySource,
     "xinhua-politics": XinhuaPoliticsSource,
     "gmw-theory": lambda: PlaceholderSource("gmw-theory"),
-    "stats-gov": lambda: PlaceholderSource("stats-gov"),
+    "stats-gov": StatsGovSource,
     "sichuan-gov": SichuanGovSource,
     "chongqing-gov": ChongqingGovSource,
+    "neac-gov": NeacGovSource,
+    "most-gov": MostGovSource,
+    "mohrss-gov": MohrssGovSource,
+    "ccdi-gov": CcdiGovSource,
 }
 
 
@@ -39,6 +46,7 @@ SOURCES = {
 class IngestResult:
     written: list[Path]
     skipped_existing: int = 0
+    skipped_filtered: int = 0
 
 
 def get_source(name: str):
@@ -54,6 +62,8 @@ def ingest_articles(
     paths: Paths,
     limit: int | None = None,
     refresh: bool = False,
+    profile: str | None = None,
+    keywords: str | None = None,
 ) -> IngestResult:
     paths.ensure()
     source = get_source(source_name)
@@ -62,6 +72,8 @@ def ingest_articles(
 
     written: list[Path] = []
     skipped_existing = 0
+    skipped_filtered = 0
+    include_keywords = list(dict.fromkeys([*keywords_for_profile(profile), *parse_keywords(keywords)]))
     discovery_limit = article_discovery_limit(limit, refresh)
     for url in source.list_article_urls(since=since, limit=discovery_limit):
         if limit is not None and len(written) >= limit:
@@ -75,6 +87,9 @@ def ingest_articles(
         write_text(raw_path, html)
 
         article = source.parse_article_html(html, url)
+        if not article_matches_keywords(article.title, article.content, include_keywords):
+            skipped_filtered += 1
+            continue
         article.raw_path = str(raw_path.relative_to(paths.root))
         vault_path = article_vault_path(paths, source_name, article)
         processed_path = article_processed_path(paths, source_name, article)
@@ -85,7 +100,7 @@ def ingest_articles(
         write_text(vault_path, article_markdown(article))
         db.upsert_article(conn, article)
         written.append(vault_path)
-    return IngestResult(written=written, skipped_existing=skipped_existing)
+    return IngestResult(written=written, skipped_existing=skipped_existing, skipped_filtered=skipped_filtered)
 
 
 def article_discovery_limit(limit: int | None, refresh: bool) -> int | None:

@@ -1,0 +1,31 @@
+Replace C:\Projects\Exam_Database with the actual repository path.
+
+Initialize ExamDB directories/schema (only for a new empty database):
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\examdb.ps1" init
+
+Start practice UI:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\start-practice-server.ps1"
+
+Collect QSTheory materials:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\collect-recent.ps1" -Source qstheory
+
+Collect People Commentary:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\collect-recent.ps1" -Source people-commentary
+
+Generate weekly report:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\generate-weekly-report.ps1"
+
+Preview DeepSeek retagging:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\retag-articles.ps1" -Source qstheory -Limit 10
+
+Preview Markdown metadata synchronization:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\sync-articles.ps1" -Source qstheory -OnlyChanged
+
+Fenbi manual login:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\fenbi-login.ps1"
+
+Discover Fenbi papers:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\discover-fenbi-papers.ps1" -LabelId 1 -PaperKind xingce
+
+Fetch and import one Fenbi paper:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Projects\Exam_Database\scripts\windows\fetch-fenbi-paper.ps1" -PaperId 222388 -Import

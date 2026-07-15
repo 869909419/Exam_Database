@@ -77,10 +77,17 @@ def infer_paper_metadata(path: Path) -> tuple[str, str, int | None, str, str]:
     year = int(year_match.group(1)) if year_match else None
     exam_category = "事业编" if any(keyword in name for keyword in ("事业编", "事业单位", "职测", "综应", "公基")) else "公务员"
 
-    if "四川" in name:
-        exam_type, region = "省考", "四川"
-    elif "重庆" in name:
-        exam_type, region = "省考", "重庆"
+    PROVINCE_NAMES = [
+        "安徽", "北京", "福建", "甘肃", "广东", "广西", "贵州",
+        "海南", "河北", "河南", "黑龙江", "湖北", "湖南", "吉林",
+        "江苏", "江西", "辽宁", "内蒙古", "宁夏", "青海", "山东",
+        "山西", "陕西", "上海", "四川", "天津", "西藏", "新疆",
+        "云南", "浙江", "重庆", "深圳", "广州",
+    ]
+    matched = next((p for p in PROVINCE_NAMES if p in name), None)
+    if matched:
+        exam_type = "省考" if matched not in ("深圳", "广州") else "市考"
+        region = matched
     elif "事业" in name or exam_category == "事业编":
         exam_type, region = "事业编", "全国"
     elif "国考" in name or "国家公务员" in name:

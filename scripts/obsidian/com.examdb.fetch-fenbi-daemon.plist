@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 服务标识 -->
+    <key>Label</key>
+    <string>com.examdb.fetch-fenbi-daemon</string>
+
+    <!-- 启动即跑，不用等用户登录 -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 即使没登录 GUI 也跑（需安装到 /Library/LaunchDaemons） -->
+    <key>UserName</key>
+    <string>liuyigedabu</string>
+
+    <!-- 工作目录 -->
+    <key>WorkingDirectory</key>
+    <string>/Users/liuyigedabu/Documents/Exam_Database</string>
+
+    <!-- 执行命令：caffeinate 防休眠 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>-s</string>
+        <string>/bin/bash</string>
+        <string>/Users/liuyigedabu/Documents/Exam_Database/scripts/obsidian/fetch_fenbi_daemon.sh</string>
+    </array>
+
+    <!-- 环境变量 -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DAEMON_LOOP</key>
+        <string>true</string>
+        <key>INTERVAL_HOURS</key>
+        <string>2</string>
+        <key>LABEL_IDS</key>
+        <string>1 26</string>
+        <key>PAPER_KINDS</key>
+        <string>xingce shenlun</string>
+        <key>BATCH_DELAY</key>
+        <string>30</string>
+        <key>BATCH_DELAY_JITTER</key>
+        <string>20</string>
+        <key>MAX_PAPERS_PER_LABEL</key>
+        <string>10</string>
+        <key>PAUSE_BETWEEN_LABELS</key>
+        <string>300</string>
+        <key>LOG_FILE</key>
+        <string>data/fetch_daemon.log</string>
+        <key>IMPORT_AFTER_FETCH</key>
+        <string>true</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <!-- 日志 -->
+    <key>StandardOutPath</key>
+    <string>/Users/liuyigedabu/Documents/Exam_Database/data/fetch_daemon_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/liuyigedabu/Documents/Exam_Database/data/fetch_daemon_stderr.log</string>
+
+    <!-- 崩溃重启 -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- 间隔 4 小时自动重启一轮（作为 KeepAlive 保底以外的心跳） -->
+    <key>StartInterval</key>
+    <integer>14400</integer>
+</dict>
+</plist>

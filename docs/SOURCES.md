@@ -4,12 +4,17 @@
 
 | 来源 | 类型 | 首版状态 | 备注 |
 | --- | --- | --- | --- |
-| 求是网 | 政策理论 | 已实现 | 默认从目录页滚动采集最近一年，按期数归档 |
+| 求是网读刊 | 政策理论 | 已实现 | `qstheory` 默认从目录页滚动采集最近一年，按期数归档 |
+| 求是网主站栏目 | 政策理论/理论评论 | 已实现 | `qstheory-web` 采首页、要闻、网评、原创、政治、党建、科教、学习笔记、理论文选等 |
 | 人民网观点/人民网评 | 评论材料 | 已实现 | 重点作为申论表达素材 |
 | 中国政府网 | 政策文件 | 已实现 | 最新政策、政策解读、国务院文件 |
 | 新华网时政 | 时政新闻 | 已实现 | 重大时政、新华社通稿、新华典评 |
 | 四川省政府/重庆市政府 | 地方政策 | 已实现 | 地方省考/市考政策素材 |
-| 国家统计局 | 数据材料 | P1 规划 | 统计公报、经济数据、图表素材 |
+| 国家统计局 | 数据材料 | 已实现 | 统计公报、经济数据、图表素材 |
+| 国家民委 | 政治理论/民族工作 | 已实现 | 民族工作、中华民族共同体意识 |
+| 科技部 | 科技政策 | 已实现 | 科技强国、科技自立自强、新质生产力 |
+| 人社部 | 民生政策 | 已实现 | 就业、社保、劳动权益 |
+| 中央纪委国家监委 | 党建/纪律建设 | 已实现 | 自我革命、全面从严治党、纪律建设 |
 | 人民日报/人民网 | 新闻评论 | P2 规划 | 重要评论、理论版、人民时评 |
 | 光明网理论 | 理论文章 | P2 规划 | 理论、文化、治理材料 |
 | 粉笔 | 真题结构化数据/PDF | 已验证页面链路，已实现 `static/solution` JSON 标准化导入 | 登录后可答题、下载 PDF、交卷查看逐题答案解析；凭据只读环境变量 |
@@ -17,6 +22,8 @@
 | 用户自备 PDF/Markdown | 真题 | 已实现标准化导入 | 继续支持 inbox 批量导入 |
 
 完整来源路线图见 `docs/SOURCE_ROADMAP.md`。
+
+政治理论备考采集可以使用 `--profile politics-theory` 按高频考点画像筛选同类新材料。已考原文用于校准画像和题源证据，不是采集终点。
 
 ## 采集字段
 
@@ -53,7 +60,7 @@
 
 ## Obsidian 路径规则
 
-文章按来源分组。求是文章优先按期数分组；无法识别期数的来源回退为发布日期分组。
+文章按来源分组。求是读刊文章优先按期数分组；无法识别期数的来源回退为发布日期分组。
 
 求是期数路径：
 
@@ -331,11 +338,36 @@ JSONL 每行建议字段：
 ## 求是网首版规则
 
 - 默认目录页：`https://www.qstheory.cn/qs/mulu.htm`
+- Source ID：`qstheory`
 - 默认采集窗口：当前日期往前一年。
 - 从年度目录展开期刊目录，再从期刊目录展开正文文章。
 - 文章 URL 以 `qstheory.cn` 域名、日期路径、`c.html` 结尾为主要候选。
 - 期刊目录页不入库，只用于发现正文文章。
 - 文章按 `source: 《求是》YYYY/N` 解析期数并归档。
+
+## 求是网主站栏目规则
+
+- Source ID：`qstheory-web`
+- 默认入口：
+  - `https://www.qstheory.cn/`
+  - `https://www.qstheory.cn/qsyw/index.htm`
+  - `https://www.qstheory.cn/qswp.htm`
+  - `https://www.qstheory.cn/qslgxd/index.htm`
+  - `https://www.qstheory.cn/politics/index.htm`
+  - `https://www.qstheory.cn/cpc/index.htm`
+  - `https://www.qstheory.cn/science/index.htm`
+  - `https://www.qstheory.cn/qszq/xxbj/index.htm`
+  - `https://www.qstheory.cn/qszq/llwx/index.htm`
+  - `https://www.qstheory.cn/v9zhuanqu/zhuanqu/llzt/index.htm`
+- 主站 adapter 不主动展开 `/qs/` 读刊目录，避免和 `qstheory` 的职责混在一起。
+- 首页和栏目里出现的正刊文章仍可能与读刊 adapter 采集到同一 URL；SQLite 的 `url` 和 `content_hash` 唯一约束负责去重。
+- 建议默认搭配 `--profile politics-theory`，把主站广谱内容收敛为考公政治理论备考材料。
+
+命令示例：
+
+```bash
+PYTHONPATH=src python3 -m examdb ingest articles --source qstheory-web --since 2025-01-01 --limit 5 --profile politics-theory
+```
 
 ## 人民网观点规则
 

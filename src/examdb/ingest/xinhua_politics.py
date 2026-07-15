@@ -23,33 +23,40 @@ from examdb.models import ArticleRecord
 
 
 INDEX_URL = "https://www.news.cn/politics/"
+ENTRY_URLS = (
+    INDEX_URL,
+    "https://www.news.cn/politics/leaders/",
+    "https://www.news.cn/politics/xxjxs/",
+)
 DEFAULT_MAX_PAGES = 300
 
 
 class XinhuaPoliticsSource:
     name = "xinhua-politics"
 
-    def __init__(self, index_url: str = INDEX_URL) -> None:
+    def __init__(self, index_url: str = INDEX_URL, entry_urls: tuple[str, ...] | None = None) -> None:
         self.index_url = index_url
+        self.entry_urls = entry_urls or ENTRY_URLS
 
     def list_article_urls(self, since: date, limit: int | None = None) -> list[str]:
-        html = self.fetch_article_html(self.index_url)
         urls: list[str] = []
         seen: set[str] = set()
-        for url in self._extract_links(html, self.index_url):
-            if len(seen) >= self._max_pages():
+        for seed_url in self._seed_urls():
+            if not self._append_url(seed_url, since, urls, seen, limit):
+                continue
+            return urls
+        for entry_url in self.entry_urls:
+            if len(seen) >= self._max_pages() or (limit is not None and len(urls) >= limit):
                 break
-            if not self._is_article_url(url):
+            try:
+                html = self.fetch_article_html(entry_url)
+            except Exception:
                 continue
-            url_date = self._date_from_url(url)
-            if url_date and date.fromisoformat(url_date) < since:
-                continue
-            if url in seen:
-                continue
-            seen.add(url)
-            urls.append(url)
-            if limit is not None and len(urls) >= limit:
-                break
+            for url in self._extract_links(html, entry_url):
+                if len(seen) >= self._max_pages():
+                    break
+                if self._append_url(url, since, urls, seen, limit):
+                    return urls
         return urls
 
     def fetch_article_html(self, url: str) -> str:
@@ -99,18 +106,32 @@ class XinhuaPoliticsSource:
 
     def _is_article_url(self, url: str) -> bool:
         parsed = urlparse(url)
-        return bool(re.search(r"/politics/20\d{6}/[a-z0-9]+/c\.html$", parsed.path))
+        return bool(re.search(r"/politics/(?:leaders/)?20\d{6}/[a-z0-9]+/c\.html$", parsed.path))
 
     def _is_asset_url(self, url: str) -> bool:
         lower = normalize_url(url).lower()
         return lower.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".mp4", ".css", ".js"))
 
     def _date_from_url(self, url: str) -> str | None:
-        match = re.search(r"/politics/(20\d{2})(\d{2})(\d{2})/", url)
+        match = re.search(r"/politics/(?:leaders/)?(20\d{2})(\d{2})(\d{2})/", url)
         if not match:
             return None
         year, month, day = match.groups()
         return f"{year}-{month}-{day}"
+
+    def _append_url(self, url: str, since: date, urls: list[str], seen: set[str], limit: int | None) -> bool:
+        if limit is not None and len(urls) >= limit:
+            return True
+        if not self._is_article_url(url):
+            return False
+        url_date = self._date_from_url(url)
+        if url_date and date.fromisoformat(url_date) < since:
+            return False
+        if url in seen:
+            return False
+        seen.add(url)
+        urls.append(url)
+        return limit is not None and len(urls) >= limit
 
     def _extract_xinhua_title(self, html: str) -> str:
         title = extract_first([r'<span[^>]+class=["\']title["\'][^>]*>(.*?)</span>'], html)
@@ -165,3 +186,18 @@ class XinhuaPoliticsSource:
             return max(1, int(raw_value))
         except ValueError:
             return DEFAULT_MAX_PAGES
+
+    def _seed_urls(self) -> list[str]:
+        urls: list[str] = []
+        raw_value = os.getenv("XINHUA_POLITICS_SEED_URLS")
+        if raw_value:
+            urls.extend(item.strip() for item in re.split(r"[\n,]", raw_value) if item.strip())
+        seed_file = os.getenv("XINHUA_POLITICS_SEED_FILE")
+        if seed_file and os.path.exists(seed_file):
+            with open(seed_file, encoding="utf-8") as handle:
+                for line in handle:
+                    value = line.strip()
+                    if not value or value.startswith("#"):
+                        continue
+                    urls.append(value.split("|")[-1].strip())
+        return urls

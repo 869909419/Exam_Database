@@ -28,7 +28,16 @@ def yaml_scalar(value: Any) -> str:
 def frontmatter(data: dict[str, Any]) -> str:
     lines = ["---"]
     for key, value in data.items():
-        if isinstance(value, list):
+        if isinstance(value, dict):
+            lines.append(f"{key}:")
+            for sub_key, sub_value in value.items():
+                if isinstance(sub_value, list):
+                    lines.append(f"  {yaml_scalar(sub_key)}:")
+                    for item in sub_value:
+                        lines.append(f"    - {yaml_scalar(item)}")
+                else:
+                    lines.append(f"  {yaml_scalar(sub_key)}: {yaml_scalar(sub_value)}")
+        elif isinstance(value, list):
             lines.append(f"{key}:")
             for item in value:
                 lines.append(f"  - {yaml_scalar(item)}")
@@ -153,7 +162,11 @@ def grouped_question_card_path(vault: Path, material_group: str, questions: list
 def grouped_question_markdown(questions: list[Question]) -> str:
     first = questions[0]
     material, _ = _split_material(first.stem)
-    knowledge_points = list(dict.fromkeys(point for question in questions for point in question.knowledge_points))
+    knowledge_points = [
+        f"{question.number}: {'、'.join(question.knowledge_points)}"
+        for question in questions
+        if question.knowledge_points
+    ]
     metadata = {
         "paper_id": first.paper_id,
         "question_ids": [question.id for question in questions],
@@ -173,6 +186,9 @@ def grouped_question_markdown(questions: list[Question]) -> str:
         lines.extend([f"## 第 {question.number} 题", "", stem.strip(), ""])
         for key, value in question.options.items():
             lines.append(f"- {key}. {value}")
+        if question.knowledge_points:
+            kp_text = "、".join(question.knowledge_points)
+            lines.extend(["", f"**考点：{kp_text}**"])
         if question.answer:
             lines.extend(["", f"**答案：{question.answer}**"])
         if question.explanation:

@@ -23,6 +23,7 @@ from examdb.models import ArticleRecord
 
 LATEST_JSON_URL = "https://www.gov.cn/zhengce/zuixin/ZUIXINZHENGCE.json"
 INTERPRETATION_JSON_URL = "https://www.gov.cn/zhengce/jiedu/ZCJD_QZ.json"
+YAOWEN_INDEX_URL = "https://www.gov.cn/yaowen/liebiao/"
 DEFAULT_MAX_RECORDS = 800
 
 
@@ -33,15 +34,46 @@ class GovPolicySource:
         self,
         latest_json_url: str = LATEST_JSON_URL,
         interpretation_json_url: str = INTERPRETATION_JSON_URL,
+        yaowen_index_url: str = YAOWEN_INDEX_URL,
     ) -> None:
         self.latest_json_url = latest_json_url
         self.interpretation_json_url = interpretation_json_url
+        self.yaowen_index_url = yaowen_index_url
 
     def list_article_urls(self, since: date, limit: int | None = None) -> list[str]:
+        urls: list[str] = []
+        seen: set[str] = set()
+        for seed_url in self._seed_urls():
+            if not self._is_article_url(seed_url):
+                continue
+            parsed_date = self._date_from_url(seed_url)
+            if parsed_date and date.fromisoformat(parsed_date) < since:
+                continue
+            if seed_url not in seen:
+                seen.add(seed_url)
+                urls.append(seed_url)
+            if limit is not None and len(urls) >= limit:
+                return urls
+
         records = []
         records.extend(self._fetch_records(self.latest_json_url))
         records.extend(self._fetch_records(self.interpretation_json_url))
-        return self._records_to_urls(records, since=since, limit=limit)
+        for url in self._records_to_urls(records, since=since, limit=None):
+            if url in seen:
+                continue
+            seen.add(url)
+            urls.append(url)
+            if limit is not None and len(urls) >= limit:
+                return urls
+
+        for url in self._yaowen_urls(since=since):
+            if url in seen:
+                continue
+            seen.add(url)
+            urls.append(url)
+            if limit is not None and len(urls) >= limit:
+                return urls
+        return urls
 
     def fetch_article_html(self, url: str) -> str:
         return fetch_html(url)
@@ -112,11 +144,38 @@ class GovPolicySource:
         parsed = urlparse(normalize_url(url))
         if parsed.netloc != "www.gov.cn":
             return False
-        if not parsed.path.startswith("/zhengce/"):
+        if not parsed.path.startswith(("/zhengce/", "/yaowen/")):
             return False
         if parsed.path.endswith("/index.htm"):
             return False
         return bool(re.search(r"/content_\d+\.htm$", parsed.path))
+
+    def _date_from_url(self, url: str) -> str | None:
+        match = re.search(r"/(20\d{2})(\d{2})/", url)
+        if match:
+            year, month = match.groups()
+            return f"{year}-{month}-01"
+        return None
+
+    def _yaowen_urls(self, since: date) -> list[str]:
+        try:
+            html = self.fetch_article_html(self.yaowen_index_url)
+        except Exception:
+            return []
+        from examdb.ingest.html_helpers import extract_links
+
+        urls: list[str] = []
+        seen: set[str] = set()
+        for url in extract_links(html, self.yaowen_index_url):
+            if not self._is_article_url(url):
+                continue
+            parsed_date = self._date_from_url(url)
+            if parsed_date and date.fromisoformat(parsed_date) < since:
+                continue
+            if url not in seen:
+                seen.add(url)
+                urls.append(url)
+        return urls
 
     def _extract_gov_title(self, html: str) -> str:
         title = extract_first([r"标\s*题[:：]?\s*</h2>\s*<p[^>]*>(.*?)</p>"], html)
@@ -191,3 +250,18 @@ class GovPolicySource:
             return max(1, int(raw_value))
         except ValueError:
             return DEFAULT_MAX_RECORDS
+
+    def _seed_urls(self) -> list[str]:
+        urls: list[str] = []
+        raw_value = os.getenv("GOV_POLICY_SEED_URLS")
+        if raw_value:
+            urls.extend(item.strip() for item in re.split(r"[\n,]", raw_value) if item.strip())
+        seed_file = os.getenv("GOV_POLICY_SEED_FILE")
+        if seed_file and os.path.exists(seed_file):
+            with open(seed_file, encoding="utf-8") as handle:
+                for line in handle:
+                    value = line.strip()
+                    if not value or value.startswith("#"):
+                        continue
+                    urls.append(value.split("|")[-1].strip())
+        return urls

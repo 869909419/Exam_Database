@@ -112,3 +112,55 @@ class PracticeAttempt:
     confidence: int | None
     note: str | None
     attempted_at: str
+    session_id: str | None = None
+    position: int | None = None
+    mistake_reason: str | None = None
+    review_note: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass
+class PracticeSession:
+    id: str
+    mode: str
+    title: str
+    config: dict
+    status: str = "active"
+    started_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    finished_at: str | None = None
+    total_count: int = 0
+    correct_count: int = 0
+    duration_seconds: int | None = None
+    ai_summary: str | None = None
+    ai_status: str = "not_requested"
+    ai_generated_at: str | None = None
+
+
+@dataclass
+class PracticeSessionItem:
+    id: str
+    session_id: str
+    question_id: str
+    position: int
+    material_group: str | None = None
+    selected_answer: str | None = None
+    is_correct: bool | None = None
+    duration_seconds: int | None = None
+    answered_at: str | None = None
+    review_note: str | None = None
+    mistake_reason: str | None = None
+    confidence: int | None = None
+    favorite: bool = False
+
+
+@dataclass
+class QuestionReview:
+    question_id: str
+    mistake_reason: str | None = None
+    review_note: str | None = None
+    confidence: int | None = None
+    favorite: bool = False
+    last_attempt_id: str | None = None
+    last_attempted_at: str | None = None
+    markdown_path: str | None = None
+    updated_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))

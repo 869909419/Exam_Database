@@ -27,6 +27,7 @@ examdb classify questions --paper-id paper-id --apply
 examdb review papers --status needs_review
 examdb practice start --filter "国考 言语理解"
 examdb report weekly
+examdb analyze politics-sources --years 2025,2026 --paper-kind 行测 --knowledge-point 政治理论
 ```
 
 ## SQLite
@@ -50,11 +51,12 @@ Markdown frontmatter 和 SQLite 字段保持同名优先，便于 Dataview 和�
 - `fetch_article_html(url)`：读取原始 HTML。
 - `parse_article_html(html, url)`：输出 `ArticleRecord`。
 
-当前已实现 `qstheory`、`people-commentary`、`gov-policy`、`xinhua-politics`、`sichuan-gov` 和 `chongqing-gov`。其他来源先登记为 placeholder，按 `docs/SOURCE_ROADMAP.md` 逐个实现 adapter。
+当前已实现 `qstheory`、`qstheory-web`、`people-commentary`、`gov-policy`、`xinhua-politics`、`sichuan-gov`、`chongqing-gov`、`neac-gov`、`most-gov`、`mohrss-gov`、`ccdi-gov` 和 `stats-gov`。其他来源先登记为 placeholder，按 `docs/SOURCE_ROADMAP.md` 逐个实现 adapter。
 
 当前登记的 source id：
 
 - `qstheory`
+- `qstheory-web`
 - `people-commentary`
 - `gov`（兼容旧命令，等同 `gov-policy`）
 - `gov-policy`
@@ -64,6 +66,10 @@ Markdown frontmatter 和 SQLite 字段保持同名优先，便于 Dataview 和�
 - `gmw-theory`
 - `sichuan-gov`
 - `chongqing-gov`
+- `neac-gov`
+- `most-gov`
+- `mohrss-gov`
+- `ccdi-gov`
 
 `qstheory` 的特殊规则：
 
@@ -72,6 +78,12 @@ Markdown frontmatter 和 SQLite 字段保持同名优先，便于 Dataview 和�
 - 正文图片保存在同一期文件夹下的 `附件/title/`。
 - 非期刊来源默认按发布日期归档：`source/YYYY/MM-DD/title.md`。
 
+`qstheory-web` 的特殊规则：
+
+- 只扫描求是网主站和重点栏目，不主动展开 `/qs/` 读刊目录。
+- 与读刊 adapter 重复的正刊文章依靠 SQLite 的 `url/content_hash` 去重。
+- 推荐搭配 `--profile politics-theory`，把主站广谱文章收敛为备考材料。
+
 `people-commentary` 使用非期刊日期归档，并复用正文图片本地化、SQLite upsert、Markdown frontmatter 输出流程。
 
 `gov-policy` 使用中国政府网公开 JSON 数据源发现最新政策和政策解读文章，正文优先从 `UCAP-CONTENT` 提取，使用非期刊日期归档，并复用图片本地化与 SQLite 去重流程。`gov` 是 `gov-policy` 的兼容别名。
@@ -79,6 +91,12 @@ Markdown frontmatter 和 SQLite 字段保持同名优先，便于 Dataview 和�
 `xinhua-politics` 从新华网时政频道发现公开文章，限制 URL 为 `www.news.cn/politics/YYYYMMDD/.../c.html`，正文优先从 `detailContent` 提取。
 
 `sichuan-gov` 和 `chongqing-gov` 复用地方政府 adapter 基类，从政府首页、政策文件和政策解读栏目发现文章，正文优先从政府站点常见正文容器提取，必要时用页面元数据兜底。
+
+`neac-gov`、`most-gov`、`mohrss-gov`、`ccdi-gov` 和 `stats-gov` 复用官方站 adapter 基类，服务政治理论高频来源画像中的民族、科技、就业、自我革命和统计数据主题。
+
+`examdb ingest articles` 支持 `--profile politics-theory` 和 `--keywords`，用于按备考画像收集同类新材料，而不是只定位已考原文。
+
+`examdb analyze politics-sources` 从已导入题目中抽取来源证据，可用于校准采集画像；加 `--apply` 后写入 `question_sources`，不覆盖原题解析。
 
 ## AI 调用
 

@@ -5,7 +5,7 @@ import os
 import re
 from datetime import date
 from html.parser import HTMLParser
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from examdb.ai import suggest_policy_metadata_with_ai
@@ -14,7 +14,31 @@ from examdb.models import ArticleRecord
 
 
 INDEX_URL = "https://www.qstheory.cn/qs/mulu.htm"
+WEB_INDEX_URL = "https://www.qstheory.cn/"
+WEB_ENTRY_URLS = (
+    WEB_INDEX_URL,
+    "https://www.qstheory.cn/qsyw/index.htm",
+    "https://www.qstheory.cn/qswp.htm",
+    "https://www.qstheory.cn/qslgxd/index.htm",
+    "https://www.qstheory.cn/politics/index.htm",
+    "https://www.qstheory.cn/cpc/index.htm",
+    "https://www.qstheory.cn/science/index.htm",
+    "https://www.qstheory.cn/qszq/xxbj/index.htm",
+    "https://www.qstheory.cn/qszq/llwx/index.htm",
+    "https://www.qstheory.cn/v9zhuanqu/zhuanqu/llzt/index.htm",
+)
+WEB_DIRECTORY_PATH_TOKENS = (
+    "/qsyw/",
+    "/qswp",
+    "/qslgxd/",
+    "/politics/",
+    "/cpc/",
+    "/science/",
+    "/qszq/",
+    "/v9zhuanqu/",
+)
 DEFAULT_MAX_PAGES = 2000
+DEFAULT_WEB_MAX_PAGES = 160
 
 
 class LinkExtractor(HTMLParser):
@@ -102,7 +126,7 @@ class QSTheorySource:
         content = clean_article_text(markdown_content)
         content_hash = hashlib.sha256(f"{title}\n{content}".encode("utf-8")).hexdigest()[:16]
         metadata = suggest_policy_metadata_with_ai(title, content)
-        article_id = f"qstheory-{content_hash}"
+        article_id = f"{self.name}-{content_hash}"
         return ArticleRecord(
             id=article_id,
             title=title,
@@ -222,3 +246,85 @@ class QSTheorySource:
             return max(1, int(raw_value))
         except ValueError:
             return DEFAULT_MAX_PAGES
+
+
+class QSTheoryWebSource(QSTheorySource):
+    name = "qstheory-web"
+
+    def __init__(self, entry_urls: tuple[str, ...] | None = None) -> None:
+        super().__init__(WEB_INDEX_URL)
+        self.entry_urls = entry_urls or WEB_ENTRY_URLS
+
+    def list_article_urls(self, since: date, limit: int | None = None) -> list[str]:
+        urls: list[str] = []
+        seen_urls: set[str] = set()
+        queue = list(self.entry_urls)
+        seen_pages: set[str] = set()
+        max_pages = self._max_web_pages()
+
+        while queue and (limit is None or len(urls) < limit) and len(seen_pages) < max_pages:
+            page_url = queue.pop(0)
+            if page_url in seen_pages:
+                continue
+            seen_pages.add(page_url)
+            try:
+                page_html = self.fetch_article_html(page_url)
+            except Exception:
+                continue
+            for article_url in self._extract_article_urls(page_html, page_url, since):
+                if article_url in seen_urls:
+                    continue
+                seen_urls.add(article_url)
+                urls.append(article_url)
+                if limit is not None and len(urls) >= limit:
+                    break
+            if limit is not None and len(urls) >= limit:
+                break
+            for child_url in self._extract_web_directory_urls(page_html, page_url, since):
+                if child_url not in seen_pages and child_url not in queue:
+                    queue.append(child_url)
+        return urls
+
+    def _extract_web_directory_urls(self, html: str, base_url: str, since: date | None) -> list[str]:
+        parser = LinkExtractor(base_url)
+        parser.feed(html)
+        urls: list[str] = []
+        seen: set[str] = set()
+        for url in parser.links:
+            if not self._is_web_directory_url(url):
+                continue
+            url_date = self._url_date(url)
+            if since and url_date and url_date < since:
+                continue
+            if url not in seen:
+                seen.add(url)
+                urls.append(url)
+            if len(urls) >= 40:
+                break
+        return urls
+
+    def _is_web_directory_url(self, url: str) -> bool:
+        parsed = urlparse(url)
+        if parsed.netloc not in {"www.qstheory.cn", "qstheory.cn"}:
+            return False
+        path = parsed.path
+        if not path or path in {"/", "/index.htm"}:
+            return False
+        if "/qs/" in path or "mulu" in path:
+            return False
+        if path.endswith("/c.html"):
+            return False
+        if path.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".pdf", ".mp4", ".css", ".js")):
+            return False
+        if not path.endswith((".htm", ".html", "/")):
+            return False
+        return any(token in path for token in WEB_DIRECTORY_PATH_TOKENS)
+
+    def _max_web_pages(self) -> int:
+        raw_value = os.getenv("QSTHEORY_WEB_MAX_PAGES")
+        if not raw_value:
+            return DEFAULT_WEB_MAX_PAGES
+        try:
+            return max(1, int(raw_value))
+        except ValueError:
+            return DEFAULT_WEB_MAX_PAGES

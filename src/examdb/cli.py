@@ -21,8 +21,11 @@ from .paper_sources import (
 )
 from .papers import import_paper
 from .practice import list_questions
+from .practice_server import serve_practice_app
 from .reports import weekly_report
 from .retag import retag_articles
+from .reviews import sync_reviews_from_markdown, write_question_review_cards
+from .source_analysis import add_analyze_parser, analyze_politics_sources, apply_politics_sources, format_evidences
 from .sync import sync_article_metadata_from_markdown
 from .taxonomy import suggest_question_format, suggest_question_metadata, validate_question_type
 
@@ -33,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("init", help="Create vault/data directories and initialize SQLite schema.")
+    add_analyze_parser(subparsers)
 
     ingest = subparsers.add_parser("ingest", help="Ingest public materials.")
     ingest_sub = ingest.add_subparsers(dest="kind", required=True)
@@ -41,6 +45,8 @@ def build_parser() -> argparse.ArgumentParser:
     articles.add_argument("--since", default=(date.today() - timedelta(days=365)).isoformat())
     articles.add_argument("--limit", type=int)
     articles.add_argument("--refresh", action="store_true", help="Re-fetch and overwrite articles that already exist in SQLite.")
+    articles.add_argument("--profile", help="Collection profile, e.g. politics-theory, used to keep similar prep materials.")
+    articles.add_argument("--keywords", help="Comma-separated keywords used to keep similar prep materials.")
 
     import_cmd = subparsers.add_parser("import", help="Import local materials.")
     import_sub = import_cmd.add_subparsers(dest="kind", required=True)
@@ -141,6 +147,10 @@ def build_parser() -> argparse.ArgumentParser:
     practice_sub = practice.add_subparsers(dest="kind", required=True)
     start = practice_sub.add_parser("start")
     start.add_argument("--filter", default=None)
+    serve = practice_sub.add_parser("serve", help="Run the local practice Web UI.")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8765)
+    practice_sub.add_parser("export-reviews", help="Write question review cards into the Obsidian vault.")
 
     report = subparsers.add_parser("report", help="Generate reports.")
     report_sub = report.add_subparsers(dest="kind", required=True)
@@ -165,6 +175,9 @@ def build_parser() -> argparse.ArgumentParser:
     sync_articles_cmd.add_argument("--path")
     sync_articles_cmd.add_argument("--only-changed", action="store_true")
     sync_articles_cmd.add_argument("--apply", action="store_true", help="Write Markdown frontmatter tags/topics/status into SQLite.")
+    sync_reviews_cmd = sync_sub.add_parser("reviews", help="Sync allowed practice review fields from Markdown into SQLite.")
+    sync_reviews_cmd.add_argument("--path")
+    sync_reviews_cmd.add_argument("--apply", action="store_true", help="Write mistake/review/confidence/favorite fields into SQLite.")
     return parser
 
 
@@ -179,12 +192,46 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Initialized ExamDB at {paths.root}")
         return 0
 
+    if args.command == "analyze" and args.kind == "politics-sources":
+        years = [int(year.strip()) for year in args.years.split(",") if year.strip()]
+        conn = db.connect(paths.db)
+        db.init_schema(conn)
+        evidences = analyze_politics_sources(
+            conn,
+            years=years,
+            paper_kind=args.paper_kind,
+            knowledge_point=args.knowledge_point,
+            dedupe=args.dedupe,
+        )
+        print(format_evidences(evidences))
+        if args.apply:
+            written = apply_politics_sources(
+                conn,
+                evidences,
+                years=years,
+                paper_kind=args.paper_kind,
+                knowledge_point=args.knowledge_point,
+                dedupe=args.dedupe,
+            )
+            print(f"Applied {written} question source records")
+        return 0
+
     if args.command == "ingest" and args.kind == "articles":
         since = date.fromisoformat(args.since)
-        result = ingest_articles(args.source, since=since, paths=paths, limit=args.limit, refresh=args.refresh)
+        result = ingest_articles(
+            args.source,
+            since=since,
+            paths=paths,
+            limit=args.limit,
+            refresh=args.refresh,
+            profile=args.profile,
+            keywords=args.keywords,
+        )
         print(f"Ingested {len(result.written)} articles")
         if result.skipped_existing:
             print(f"Skipped {result.skipped_existing} existing articles")
+        if result.skipped_filtered:
+            print(f"Skipped {result.skipped_filtered} articles outside collection profile/keywords")
         for path in result.written:
             print(path)
         return 0
@@ -423,6 +470,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Listed {len(rows)} questions")
         return 0
 
+    if args.command == "practice" and args.kind == "serve":
+        paths.ensure()
+        conn = db.connect(paths.db)
+        db.init_schema(conn)
+        conn.close()
+        serve_practice_app(paths, host=args.host, port=args.port)
+        return 0
+
+    if args.command == "practice" and args.kind == "export-reviews":
+        paths.ensure()
+        conn = db.connect(paths.db)
+        db.init_schema(conn)
+        written = write_question_review_cards(conn, paths.vault)
+        print(f"Wrote {len(written)} review cards")
+        for path in written:
+            print(path)
+        return 0
+
     if args.command == "report" and args.kind == "weekly":
         conn = db.connect(paths.db)
         db.init_schema(conn)
@@ -494,6 +559,28 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  status: {change.old_status!r} -> {change.new_status!r}")
         if not args.apply:
             print("Dry-run only. Re-run with --apply to overwrite SQLite from Markdown.")
+        return 0
+
+    if args.command == "sync" and args.kind == "reviews":
+        target_path = Path(args.path) if args.path else None
+        result = sync_reviews_from_markdown(paths, target_path=target_path, apply=args.apply)
+        mode = "APPLY" if args.apply else "DRY-RUN"
+        print(f"{mode}: scanned {result.scanned} review cards, found {len(result.changes)} SQLite updates")
+        for change in result.changes:
+            flags = []
+            if change.applied:
+                flags.append("applied")
+            if change.error:
+                flags.append(change.error)
+            suffix = f" [{' | '.join(flags)}]" if flags else ""
+            print(f"- {change.question_id}{suffix}")
+            print(f"  {change.markdown_path}")
+            print(f"  mistake_reason: {change.old_mistake_reason!r} -> {change.new_mistake_reason!r}")
+            print(f"  review_note: {change.old_review_note!r} -> {change.new_review_note!r}")
+            print(f"  confidence: {change.old_confidence!r} -> {change.new_confidence!r}")
+            print(f"  favorite: {change.old_favorite!r} -> {change.new_favorite!r}")
+        if not args.apply:
+            print("Dry-run only. Re-run with --apply to overwrite SQLite review fields from Markdown.")
         return 0
 
     raise SystemExit("Unhandled command")

@@ -27,6 +27,7 @@ Obsidian 本身不直接执行 Python CLI。第一版支持两种入口：
 - `import_inbox_papers.sh`
 - `generate_weekly_report.sh`
 - `list_practice_questions.sh`
+- `start_practice_server.sh`
 - `retag_policy_articles.sh`
 - `sync_policy_article_metadata.sh`
 - `fenbi_login.sh`
@@ -52,6 +53,53 @@ scripts/obsidian/collect_chongqing_gov_recent.sh 2025-06-17 3
 scripts/obsidian/import_inbox_papers.sh
 scripts/obsidian/generate_weekly_report.sh
 scripts/obsidian/list_practice_questions.sh
+scripts/obsidian/start_practice_server.sh
+```
+
+### 刷题系统
+
+一期刷题系统使用本地 Web UI，不开发 Obsidian 插件。Obsidian 负责启动入口、复盘沉淀和周报阅读；SQLite 仍是题库、会话和作答记录的事实源。
+
+```bash
+scripts/obsidian/start_practice_server.sh
+```
+
+默认地址为 `http://127.0.0.1:8765`。脚本会启动本地服务并用 Chrome 打开页面；如果误打开 `src/examdb/web/index.html` 文件，页面会自动跳回本地服务地址，避免出现无样式的裸 HTML。
+
+底层 CLI 也可以直接启动：
+
+```bash
+PYTHONPATH=src python3 -m examdb practice serve --host 127.0.0.1 --port 8765
+```
+
+Web UI 当前支持：
+
+- 专项练习：按常识判断、言语理解、数量关系、判断推理、资料分析抽题。
+- 随机组卷：按国考行政执法、地市级、副省级模板组卷。
+- 重点专项：在题卡中点“标重点”后进入重点题池。
+- 错题专项：最近一次作答错误的题进入错题池；再次做对后自动离开错题池。
+- 单题卡片：一题一页，底部上一题/下一题切换；资料分析共享材料但仍按单题记录答案和耗时。
+- 作答后展示：答案、解析、知识点、最近作答历史、同知识点关联题、复盘输入框。
+
+抽题优先级：
+
+1. 未做题优先。
+2. 标重点题和错题在冷却期后优先回到普通专项/组卷。
+3. 重点专项和错题专项会直接从对应题池抽题。
+4. 近期刚做过的重点题/错题不会在普通专项里立刻反复刷屏，当前冷却期为 3 天。
+
+数据回流规则：
+
+- 作答提交后立即写入 `practice_attempts`、`practice_session_items` 和 `question_reviews`。
+- 复盘、错因、信心度、重点标记会写入 `question_reviews`。
+- 错题复盘卡会写入 `vault/刷题记录/错题本/`。
+- 题干、选项、答案、解析仍由 SQLite 和导入源管理，不从 Obsidian 回写。
+
+在 Obsidian 中修改错题复盘卡后，可预览或回写 SQLite：
+
+```bash
+PYTHONPATH=src python3 -m examdb sync reviews
+PYTHONPATH=src python3 -m examdb sync reviews --apply
 ```
 
 粉笔真题链路使用 Playwright。首次运行前，在项目根目录安装一次本地依赖：

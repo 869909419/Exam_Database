@@ -216,6 +216,8 @@ class SichuanGovSource(LocalGovSource):
     entry_urls = (
         "https://www.sc.gov.cn/",
         "https://www.sc.gov.cn/10462/c110518/list_ft.shtml",
+        "https://www.sc.gov.cn/10462/c110462/list.shtml",
+        "https://www.sc.gov.cn/10462/c105962s/list.shtml",
         "https://www.sc.gov.cn/10462/10464/13298/zcjd.shtml",
         "https://www.sc.gov.cn/10462/zfwjts/zfwj.shtml",
     )
@@ -241,6 +243,13 @@ class ChongqingGovSource(LocalGovSource):
         "https://www.cq.gov.cn/",
         "https://www.cq.gov.cn/zwgk/zfxxgkml/szfwj/",
         "https://www.cq.gov.cn/zwgk/zfxxgkml/zcjd_120614/",
+        "https://www.cq.gov.cn/zwgk/zfxxgkml/zcwj/",
+        "https://www.cq.gov.cn/zwgk/zfxxgkml/zfgb/",
     )
     article_pattern = r"/zwgk/.+/(20\d{4})/t20\d{6}_\d+\.html$"
-    allowed_path_tokens = ("/zwgk/zfxxgkml/szfwj/", "/zwgk/zfxxgkml/zcjd_120614/")
+    allowed_path_tokens = (
+        "/zwgk/zfxxgkml/szfwj/",
+        "/zwgk/zfxxgkml/zcjd_120614/",
+        "/zwgk/zfxxgkml/zcwj/",
+        "/zwgk/zfxxgkml/zfgb/",
+    )

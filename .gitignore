@@ -39,6 +39,8 @@ vault/
 ## Local data stores and generated source data
 .env.local
 scripts/obsidian/.env.local
+data/exam.db
+data/*.log
 data/db/*.sqlite
 data/db/*.sqlite-*
 data/raw/**

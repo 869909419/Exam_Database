@@ -3,7 +3,7 @@ from datetime import date
 from pathlib import Path
 
 from examdb.cleaning import clean_article_text, html_to_text
-from examdb.ingest.qstheory import QSTheorySource
+from examdb.ingest.qstheory import QSTheorySource, QSTheoryWebSource
 from examdb.taxonomy import suggest_policy_metadata
 
 
@@ -68,6 +68,41 @@ class CleaningTests(unittest.TestCase):
 
         urls = FakeQSTheorySource().list_article_urls(date(2025, 6, 17))
         self.assertEqual(urls, ["https://www.qstheory.cn/20250701/article/c.html"])
+
+    def test_qstheory_web_discovers_homepage_and_channel_articles(self):
+        class FakeQSTheoryWebSource(QSTheoryWebSource):
+            def __init__(self):
+                super().__init__(("https://www.qstheory.cn/",))
+                self.pages = {
+                    "https://www.qstheory.cn/": (
+                        '<a href="https://www.qstheory.cn/20260620/home/c.html">首页文章</a>'
+                        '<a href="https://www.qstheory.cn/20260620/home/c.html">重复首页文章</a>'
+                        '<a href="https://www.qstheory.cn/20240501/old/c.html">过期文章</a>'
+                        '<a href="https://www.qstheory.cn/qswp.htm">网评</a>'
+                        '<a href="https://www.qstheory.cn/qs/mulu.htm">读刊目录</a>'
+                    ),
+                    "https://www.qstheory.cn/qswp.htm": (
+                        '<a href="https://www.qstheory.cn/20260619/channel/c.html">栏目文章</a>'
+                        '<a href="https://www.qstheory.cn/20240101/channel-old/c.html">栏目旧文</a>'
+                    ),
+                }
+
+            def fetch_article_html(self, url: str) -> str:
+                return self.pages[url]
+
+        urls = FakeQSTheoryWebSource().list_article_urls(date(2026, 6, 1))
+        self.assertEqual(
+            urls,
+            [
+                "https://www.qstheory.cn/20260620/home/c.html",
+                "https://www.qstheory.cn/20260619/channel/c.html",
+            ],
+        )
+
+    def test_qstheory_web_article_id_uses_source_prefix(self):
+        html = Path("tests/fixtures/qstheory_article.html").read_text(encoding="utf-8")
+        article = QSTheoryWebSource().parse_article_html(html, "https://www.qstheory.cn/20260615/test/c.html")
+        self.assertTrue(article.id.startswith("qstheory-web-"))
 
 if __name__ == "__main__":
     unittest.main()

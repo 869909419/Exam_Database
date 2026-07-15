@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ExamDB 刷题系统</title>
+    <script>
+      if (window.location.protocol === "file:") {
+        window.location.replace("http://127.0.0.1:8765/");
+      }
+    </script>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="dashboardView" class="dashboard-view">
+        <header class="dashboard-header">
+          <div class="brand">
+            <div>
+              <h1>刷题系统</h1>
+              <p>行测一期 · SQLite 记录作答，Obsidian 承载复盘沉淀</p>
+            </div>
+            <button id="refreshStats" class="icon-button" title="刷新数据">↻</button>
+          </div>
+        </header>
+
+        <section class="practice-launch-grid">
+          <article class="panel launch-card wide">
+            <div class="panel-title">专项练习</div>
+            <div class="launch-row">
+              <label>
+                版块
+                <select id="sectionType"></select>
+              </label>
+              <label>
+                题量
+                <input id="sectionCount" type="number" min="1" max="200" value="10" />
+              </label>
+              <button id="startSection" class="primary">开始专项</button>
+            </div>
+          </article>
+
+          <article class="panel launch-card">
+            <div class="panel-title">随机组卷</div>
+            <label>
+              模板
+              <select id="mockTemplate"></select>
+            </label>
+            <button id="startMock" class="primary">开始组卷</button>
+          </article>
+
+          <article class="panel launch-card">
+            <div class="panel-title">重点专项</div>
+            <label>
+              题量
+              <input id="favoriteCount" type="number" min="1" max="200" value="20" />
+            </label>
+            <button id="startFavorites" class="primary">练重点题</button>
+          </article>
+
+          <article class="panel launch-card">
+            <div class="panel-title">错题专项</div>
+            <label>
+              题量
+              <input id="mistakeCount" type="number" min="1" max="200" value="20" />
+            </label>
+            <button id="startMistakes" class="primary">练错题</button>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel analytics-panel">
+            <div class="panel-title">分版块数据</div>
+            <div id="statsSummary" class="metric-grid dashboard-metrics"></div>
+            <div id="typeStats" class="type-analytics"></div>
+          </article>
+
+          <article class="panel recent-panel">
+            <div class="panel-title">最近练习</div>
+            <div id="recentSessions" class="session-list"></div>
+          </article>
+        </section>
+      </section>
+
+      <section id="practiceView" class="workspace hidden">
+        <div class="topbar">
+          <div>
+            <h2 id="sessionTitle">请选择练习</h2>
+            <p id="sessionMeta">SQLite 记录作答，Obsidian 承载复盘沉淀</p>
+          </div>
+          <div class="actions">
+            <span id="sessionTimer" class="session-timer">⏱ 0:00</span>
+            <button id="backDashboard">返回工作台</button>
+            <button id="finishSession" disabled>交卷</button>
+            <button id="aiAnalysis" disabled>AI 分析</button>
+          </div>
+        </div>
+        <div id="analysisBox" class="analysis hidden"></div>
+        <div id="cards" class="cards empty-state">暂无练习会话</div>
+        <div id="questionNav" class="question-nav hidden">
+          <button id="prevQuestion">上一题</button>
+          <div id="questionCounter" class="question-counter">0 / 0</div>
+          <button id="nextQuestion">下一题</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
