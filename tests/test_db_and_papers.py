@@ -33,6 +33,7 @@ class DatabaseAndPaperTests(unittest.TestCase):
             self.assertEqual(count, 1)
             self.assertIn("tags:", article_markdown(article))
             self.assertIn("images:", article_markdown(article))
+            conn.close()
 
     def test_ingest_skips_existing_urls_unless_refreshing(self):
         class FakeSource:
@@ -153,6 +154,7 @@ class DatabaseAndPaperTests(unittest.TestCase):
             rows = db.list_paper_candidates(conn, source_id="fenbi")
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["download_status"], "pending")
+            conn.close()
 
     def test_playwright_command_prefers_project_dependency(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -258,6 +260,7 @@ class DatabaseAndPaperTests(unittest.TestCase):
             self.assertEqual(rows[0]["question_type"], "公共基础知识")
             self.assertEqual(rows[0]["question_format"], "单选")
             self.assertEqual(rows[0]["review_status"], "needs_review")
+            conn.close()
 
     def test_enrich_explanations_queues_missing_source_lookup(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -274,6 +277,7 @@ class DatabaseAndPaperTests(unittest.TestCase):
             sources = db.list_question_sources(conn, source_name="fenbi")
             self.assertEqual(result.queued, 1)
             self.assertEqual(sources[0]["status"], "needs_lookup")
+            conn.close()
 
     def test_enrich_explanations_applies_high_confidence_external_match(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -297,6 +301,7 @@ class DatabaseAndPaperTests(unittest.TestCase):
             self.assertEqual(rows[0]["explanation"], "宪法属于法律知识。")
             self.assertEqual(rows[0]["explanation_source"], "https://fenbi.example/q/1")
             self.assertEqual(rows[0]["explanation_status"], "fetched")
+            conn.close()
 
     def test_parse_fenbi_solution_maps_answers_explanations_and_sections(self):
         payload = _fenbi_solution_fixture()
@@ -336,6 +341,7 @@ class DatabaseAndPaperTests(unittest.TestCase):
             self.assertIn("## 第 2 题", group_text)
             self.assertIn("## 第 3 题", group_text)
             self.assertFalse((root / "vault" / "题库" / "题目卡片" / f"{paper.id}-2.md").exists())
+            conn.close()
 
     def test_import_fenbi_solution_handles_slashes_in_title_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:

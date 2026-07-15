@@ -6,6 +6,8 @@ $python = Get-ExamDbPython
 
 Push-Location $script:ProjectRoot
 try {
+    $env:PYTHONUTF8 = "1"
+    $env:PYTHONIOENCODING = "utf-8"
     & $python -m unittest discover -s tests
     if ($LASTEXITCODE -ne 0) {
         throw "Tests failed with exit code $LASTEXITCODE"

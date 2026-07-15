@@ -128,12 +128,15 @@ status: "parsed"
                 markdown_path=str(note_path.relative_to(paths.root)),
             ),
         )
+        conn.close()
         return paths, note_path
 
     def _db_tags(self, paths: Paths) -> tuple[list[str], list[str], str]:
         conn = db.connect(paths.db)
         row = conn.execute("SELECT tags_json, topics_json, status FROM articles WHERE id = ?", ("article-job",)).fetchone()
-        return json.loads(row["tags_json"]), json.loads(row["topics_json"]), row["status"]
+        result = json.loads(row["tags_json"]), json.loads(row["topics_json"]), row["status"]
+        conn.close()
+        return result
 
 
 if __name__ == "__main__":

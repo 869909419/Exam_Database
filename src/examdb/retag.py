@@ -112,6 +112,7 @@ def retag_articles(
             db.update_article_metadata(conn, row["id"], change.new_tags, change.new_topics, AI_RETAGGED_STATUS)
             change.applied = True
 
+    conn.close()
     return result
 
 

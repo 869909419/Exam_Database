@@ -100,6 +100,7 @@ def enrich_explanations(
             )
         )
 
+    conn.close()
     return EnrichmentResult(scanned=len(rows), queued=queued, matched=matched, applied=applied_count, changes=changes)
 
 

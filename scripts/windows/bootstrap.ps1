@@ -18,13 +18,29 @@ function Assert-LastExitCode {
 Push-Location $projectRoot
 try {
     if (-not (Test-Path $venvPython)) {
+        $venvCreated = $false
         if (Get-Command py -ErrorAction SilentlyContinue) {
             & py -3.11 -m venv .venv
+            $venvCreated = ($LASTEXITCODE -eq 0 -and (Test-Path $venvPython))
         }
-        elseif (Get-Command python -ErrorAction SilentlyContinue) {
+
+        if (-not $venvCreated) {
+            $nativePython = Get-ChildItem (Join-Path $env:LOCALAPPDATA "Programs\Python\Python*\python.exe") -ErrorAction SilentlyContinue |
+                Sort-Object FullName -Descending |
+                Select-Object -First 1
+            if ($nativePython) {
+                Write-Warning "The py launcher could not create a Python 3.11+ environment; using $($nativePython.FullName)."
+                & $nativePython.FullName -m venv .venv
+                $venvCreated = ($LASTEXITCODE -eq 0 -and (Test-Path $venvPython))
+            }
+        }
+
+        if (-not $venvCreated -and (Get-Command python -ErrorAction SilentlyContinue)) {
             & python -m venv .venv
+            $venvCreated = ($LASTEXITCODE -eq 0 -and (Test-Path $venvPython))
         }
-        else {
+
+        if (-not $venvCreated) {
             throw "Python 3.11+ was not found. Install Python and enable the py launcher."
         }
         Assert-LastExitCode "Creating the virtual environment"

@@ -95,6 +95,7 @@ def sync_article_metadata_from_markdown(
             db.update_article_metadata(conn, row["id"], markdown_tags, markdown_topics, markdown_status)
             change.applied = True
 
+    conn.close()
     return result
 
 

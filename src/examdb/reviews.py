@@ -112,6 +112,7 @@ def sync_reviews_from_markdown(
                 ),
             )
             change.applied = True
+    conn.close()
     return result
 
 

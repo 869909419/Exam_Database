@@ -72,6 +72,7 @@ def import_fenbi_solution(
     db.upsert_paper(conn, paper)
     for question in questions:
         db.upsert_question(conn, question)
+    conn.close()
     write_question_cards(paths.vault, questions)
     return paper
 

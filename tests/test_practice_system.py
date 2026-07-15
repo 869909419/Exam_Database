@@ -24,6 +24,7 @@ class PracticeSystemTests(unittest.TestCase):
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(practice_attempts)")}
             self.assertIn("session_id", columns)
             self.assertIn("review_note", columns)
+            conn.close()
 
     def test_section_session_keeps_material_group_together(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -35,6 +36,7 @@ class PracticeSystemTests(unittest.TestCase):
             self.assertEqual(session["cards"][0]["kind"], "material_group")
             numbers = [int(item["number"]) for item in session["cards"][0]["items"]]
             self.assertEqual(numbers, list(range(numbers[0], numbers[0] + 5)))
+            conn.close()
 
     def test_mock_session_uses_guokao_template_counts(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -51,6 +53,7 @@ class PracticeSystemTests(unittest.TestCase):
             self.assertEqual(counts["数量关系"], 10)
             self.assertEqual(counts["判断推理"], 35)
             self.assertEqual(counts["资料分析"], 20)
+            conn.close()
 
     def test_answer_writes_item_attempt_and_review(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -69,6 +72,7 @@ class PracticeSystemTests(unittest.TestCase):
             self.assertEqual(attempt_count, 1)
             review = conn.execute("SELECT * FROM question_reviews WHERE question_id = ?", (result["item"]["question_id"],)).fetchone()
             self.assertEqual(review["confidence"], 4)
+            conn.close()
 
     def test_answers_are_revealed_only_after_finish(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -86,6 +90,7 @@ class PracticeSystemTests(unittest.TestCase):
             self.assertEqual(item["explanation"], "解析内容")
             self.assertEqual(finished["session"]["status"], "finished")
             self.assertGreaterEqual(finished["session"]["duration_seconds"], 12)
+            conn.close()
 
     def test_review_cards_sync_only_learning_fields(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -110,6 +115,7 @@ class PracticeSystemTests(unittest.TestCase):
             sync_reviews_from_markdown(paths, apply=True)
             row = conn.execute("SELECT review_note FROM question_reviews WHERE question_id = ?", (session["cards"][0]["items"][0]["question_id"],)).fetchone()
             self.assertEqual(row["review_note"], "画出否定词")
+            conn.close()
 
     def test_ai_analysis_without_key_is_safe(self):
         class DisabledClient:
@@ -121,6 +127,7 @@ class PracticeSystemTests(unittest.TestCase):
             session = create_session(conn, {"mode": "section", "question_type": "常识判断", "count": 1})
             result = analyze_session_with_ai(conn, session["session"]["id"], client=DisabledClient())
             self.assertEqual(result["status"], "missing_api_key")
+            conn.close()
 
     def test_recent_favorite_is_not_immediately_repeated_in_normal_section(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -146,6 +153,7 @@ class PracticeSystemTests(unittest.TestCase):
 
             favorites = create_session(conn, {"mode": "favorites", "count": 1})
             self.assertEqual(favorites["cards"][0]["items"][0]["question_id"], recent_question_id)
+            conn.close()
 
     def test_mistake_mode_uses_latest_wrong_questions(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,6 +169,7 @@ class PracticeSystemTests(unittest.TestCase):
             submit_answer(conn, session["session"]["id"], item["id"], {"selected_answer": "A", "duration_seconds": 8})
             empty = create_session(conn, {"mode": "mistakes", "count": 1})
             self.assertEqual(empty["progress"]["total"], 0)
+            conn.close()
 
     def _setup_paths(self, tmp: str) -> Paths:
         paths = Paths.from_root(tmp)
@@ -202,6 +211,7 @@ class PracticeSystemTests(unittest.TestCase):
                     source_span=f"fenbi:data;materials:group-{group_index}",
                     knowledge_points=["资料分析", "统计表"],
                 )
+        conn.close()
         return paths
 
     def _upsert_question(

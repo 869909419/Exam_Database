@@ -69,6 +69,7 @@ def discover_paper_candidates(paths: Paths, source_id: str, query: str, limit: i
     ]
     for candidate in candidates:
         db.upsert_paper_candidate(conn, candidate)
+    conn.close()
     return candidates
 
 
@@ -159,6 +160,7 @@ def download_paper_candidates(paths: Paths, source_id: str | None = None, limit:
         local_path = str(target.relative_to(paths.root))
         db.update_paper_candidate_status(conn, row["id"], download_status="downloaded", local_path=local_path)
         results.append(DownloadResult(candidate_id=row["id"], status="downloaded", path=local_path))
+    conn.close()
     return results
 
 

@@ -76,6 +76,7 @@ status: "manual-reviewed"
                 markdown_path=str(note_path.relative_to(paths.root)),
             ),
         )
+        conn.close()
         return paths
 
     def _db_metadata(self, paths: Paths) -> tuple[list[str], list[str], str]:
@@ -84,7 +85,9 @@ status: "manual-reviewed"
             "SELECT tags_json, topics_json, status FROM articles WHERE id = ?",
             ("article-job-sync",),
         ).fetchone()
-        return json.loads(row["tags_json"]), json.loads(row["topics_json"]), row["status"]
+        result = json.loads(row["tags_json"]), json.loads(row["topics_json"]), row["status"]
+        conn.close()
+        return result
 
 
 if __name__ == "__main__":

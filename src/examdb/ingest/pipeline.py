@@ -100,6 +100,7 @@ def ingest_articles(
         write_text(vault_path, article_markdown(article))
         db.upsert_article(conn, article)
         written.append(vault_path)
+    conn.close()
     return IngestResult(written=written, skipped_existing=skipped_existing, skipped_filtered=skipped_filtered)
 
 
